@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Check required env vars before attempting
-  const missing = ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GOOGLE_PUBSUB_TOPIC"].filter(
+  const missing = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GOOGLE_PUBSUB_TOPIC"].filter(
     (k) => !process.env[k]
   );
   if (missing.length > 0) {
