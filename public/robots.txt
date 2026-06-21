@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /update-password
+
+Sitemap: https://tubetarzan.com/sitemap.xml
