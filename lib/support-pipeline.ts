@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { searchKnowledgeBase, calculateConfidence, buildKnowledgeContext } from "./support-rag";
 import { generateSupportReply } from "./openai-support";
-import { sendGmailReply, createGmailDraft } from "./support-gmail";
 import { createServiceClient } from "./supabase/server";
 import { Resend } from "resend";
 
