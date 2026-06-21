@@ -127,6 +127,29 @@ export async function getEmailContent(messageId: string): Promise<{
   }
 }
 
+export async function getNewMessageIds(historyId: string): Promise<string[]> {
+  try {
+    const gmail = getGmailClient();
+    const res = await gmail.users.history.list({
+      userId: "me",
+      startHistoryId: historyId,
+      historyTypes: ["messageAdded"],
+      labelId: "INBOX",
+    });
+    const history = res.data.history || [];
+    const ids: string[] = [];
+    for (const record of history) {
+      for (const msg of record.messagesAdded || []) {
+        if (msg.message?.id) ids.push(msg.message.id);
+      }
+    }
+    return ids;
+  } catch (error) {
+    console.error("Gmail history error:", error);
+    return [];
+  }
+}
+
 export async function setupGmailWatch(): Promise<void> {
   const gmail = getGmailClient();
   await gmail.users.watch({
