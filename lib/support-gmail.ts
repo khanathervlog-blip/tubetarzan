@@ -18,6 +18,7 @@ function buildRawEmail(
   threadId?: string
 ): string {
   const lines = [
+    `From: TubeTarzan Support <support@tubetarzan.com>`,
     `To: ${to}`,
     `Subject: ${subject.startsWith("Re:") ? subject : `Re: ${subject}`}`,
     "Content-Type: text/plain; charset=utf-8",
