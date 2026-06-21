@@ -91,7 +91,7 @@ export async function runSupportPipeline(
   }));
 
   // Step 3: RAG search
-  const knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.70);
+  const knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.55);
   const knowledgeContext = buildKnowledgeContext(knowledgeChunks);
 
   // Step 4: Generate reply
