@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { MessageSquare, Mail, CheckCircle2, Clock, AlertTriangle, BookOpen } from "lucide-react";
 import GmailWatchButton from "@/components/support/GmailWatchButton";
+import PollNowButton from "@/components/support/PollNowButton";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ export default async function AdminSupportPage() {
           <p className="text-[#555555] text-sm mt-1">Manage customer conversations and knowledge base</p>
         </div>
         <div className="flex items-center gap-3">
+          <PollNowButton />
           <GmailWatchButton />
           <Link
             href="/admin/support/knowledge"
