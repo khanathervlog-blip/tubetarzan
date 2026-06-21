@@ -90,7 +90,7 @@ export async function runSupportPipeline(
   }));
 
   // Step 3: RAG search
-  const knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.55);
+  const knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.40);
   const knowledgeContext = buildKnowledgeContext(knowledgeChunks);
 
   // Step 4: Generate reply
@@ -122,27 +122,28 @@ export async function runSupportPipeline(
   let autoReplied = false;
 
   if (input.channel === "email" && input.contactEmail) {
-    if (shouldAutoReply) {
-      const subject = input.subject || "Support";
-      const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
-      try {
-        await resend.emails.send({
-          from: "TubeTarzan Support <support@tubetarzan.com>",
-          to: input.contactEmail,
-          subject: replySubject,
-          text: reply + "\n\n--\nTubeTarzan Support\nsupport@tubetarzan.com",
-        });
-        status = "auto_resolved";
-        autoReplied = true;
-      } catch (err) {
-        console.error("Resend reply failed:", err);
-        status = "needs_review";
-        await notifyAdmin(input, reply, confidence, threshold);
-      }
-    } else {
+    const subject = input.subject || "Support";
+    const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
+    const cleanReply = reply.replace("ESCALATE: ", "").replace("ESCALATE:", "");
+
+    // Always send reply to customer
+    try {
+      await resend.emails.send({
+        from: "TubeTarzan Support <support@tubetarzan.com>",
+        to: input.contactEmail,
+        subject: replySubject,
+        text: cleanReply + "\n\n--\nTubeTarzan Support\nsupport@tubetarzan.com",
+      });
+      autoReplied = true;
+      status = shouldAutoReply ? "auto_resolved" : "needs_review";
+    } catch (err) {
+      console.error("Resend reply failed:", err);
       status = "needs_review";
-      autoReplied = false;
-      await notifyAdmin(input, reply, confidence, threshold);
+    }
+
+    // Notify admin when confidence is low
+    if (!shouldAutoReply) {
+      await notifyAdmin(input, cleanReply, confidence, threshold);
     }
   } else if (input.channel === "chat") {
     status = shouldAutoReply ? "auto_resolved" : "needs_review";
