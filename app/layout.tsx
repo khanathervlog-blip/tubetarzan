@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Inter, JetBrains_Mono } from "next/font/google";
+import ChatWidget from "@/components/support/ChatWidget";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -60,6 +61,7 @@ export default function RootLayout({
         className={`${bricolage.variable} ${inter.variable} ${jetbrains.variable} antialiased bg-[#080808] text-white`}
       >
         {children}
+        <ChatWidget />
       </body>
     </html>
   );

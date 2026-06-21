@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, BarChart3, Video, Users, CreditCard, Mail, Settings } from "lucide-react";
+import { Zap, BarChart3, Video, Users, CreditCard, Mail, Settings, MessageSquare } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/admin", label: "Dashboard", icon: BarChart3 },
@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/admin/leads", label: "Leads", icon: Users },
   { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
   { href: "/admin/emails", label: "Emails", icon: Mail },
+  { href: "/admin/support", label: "Support", icon: MessageSquare },
   { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
