@@ -63,7 +63,7 @@ export async function runSupportPipeline(
   }
 
   if (!conversation) {
-    const { data } = await supabase
+    const { data, error: insertError } = await supabase
       .from("support_conversations")
       .insert({
         channel: input.channel,
@@ -78,6 +78,10 @@ export async function runSupportPipeline(
       })
       .select()
       .single();
+    if (insertError) {
+      console.error("Failed to create conversation:", insertError.message, insertError.details);
+      throw new Error(`DB insert failed: ${insertError.message}`);
+    }
     conversation = data;
     conversationId = data?.id;
   }
