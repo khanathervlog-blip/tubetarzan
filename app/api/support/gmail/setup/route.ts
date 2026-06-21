@@ -18,6 +18,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await setupGmailWatch();
-  return NextResponse.json({ success: true, message: "Gmail watch renewed. Expires in 7 days." });
+  // Check required env vars before attempting
+  const missing = ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GOOGLE_PUBSUB_TOPIC"].filter(
+    (k) => !process.env[k]
+  );
+  if (missing.length > 0) {
+    return NextResponse.json(
+      { error: `Missing env vars: ${missing.join(", ")}` },
+      { status: 500 }
+    );
+  }
+
+  try {
+    await setupGmailWatch();
+    return NextResponse.json({ success: true, message: "Gmail watch active. Expires in 7 days." });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Gmail watch setup failed:", message);
+    return NextResponse.json({ error: `Gmail API error: ${message}` }, { status: 500 });
+  }
 }
