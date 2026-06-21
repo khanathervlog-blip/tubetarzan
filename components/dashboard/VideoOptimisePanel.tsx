@@ -94,7 +94,7 @@ export default function VideoOptimisePanel({ video, channelId, onClose, onApplie
           <div>
             <p className="text-[#555555] text-xs mb-1">OPTIMISING</p>
             <h2 className="font-semibold text-white text-sm leading-snug max-w-xs">
-              "{video.title}"
+              &quot;{video.title}&quot;
             </h2>
           </div>
           <button onClick={onClose} className="text-[#555555] hover:text-white transition-colors p-1 shrink-0">

@@ -14,8 +14,10 @@ export default function PackagingStudio() {
   const [step, setStep] = useState<Step>(1);
   const [title, setTitle] = useState("");
   const [titleScore, setTitleScore] = useState(0);
-  const [_altTitles, setAltTitles] = useState<ThumbnailOption[]>([]);
-  const [_genAltTitles, _setGenAltTitles] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [altTitles, setAltTitles] = useState<ThumbnailOption[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [genAltTitles, setGenAltTitles] = useState(false);
   const [selectedTitle, setSelectedTitle] = useState("");
 
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
