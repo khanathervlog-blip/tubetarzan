@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { getEmailContent } from "@/lib/support-gmail";
 import { runSupportPipeline } from "@/lib/support-pipeline";
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 function getGmailClient() {
   const oauth2Client = new google.auth.OAuth2(
@@ -14,12 +14,10 @@ function getGmailClient() {
 }
 
 export async function POST(req: NextRequest) {
-  // Allow cron (Bearer token) or admin calls
   const auth = req.headers.get("authorization");
   const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
 
   if (!isCron) {
-    const { createClient } = await import("@/lib/supabase/server");
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,16 +31,14 @@ export async function POST(req: NextRequest) {
     const gmail = getGmailClient();
     const supabase = await createServiceClient();
 
-    // Get last processed message ID from settings
     const { data: setting } = await supabase
       .from("support_settings")
       .select("value")
       .eq("key", "last_gmail_message_id")
       .single();
 
-    const lastId = setting?.value || null;
+    const lastId = (setting as { value: string } | null)?.value || null;
 
-    // Fetch unread emails in INBOX
     const listRes = await gmail.users.messages.list({
       userId: "me",
       labelIds: ["INBOX", "UNREAD"],
@@ -50,34 +46,26 @@ export async function POST(req: NextRequest) {
     });
 
     const messages = listRes.data.messages || [];
-    if (messages.length === 0) {
-      return NextResponse.json({ processed: 0 });
-    }
+    if (messages.length === 0) return NextResponse.json({ processed: 0 });
 
-    // Filter only new messages (after lastId)
     let newMessages = messages;
     if (lastId) {
       const lastIndex = messages.findIndex(m => m.id === lastId);
-      if (lastIndex !== -1) {
-        newMessages = messages.slice(0, lastIndex);
-      }
+      if (lastIndex !== -1) newMessages = messages.slice(0, lastIndex);
     }
 
-    if (newMessages.length === 0) {
-      return NextResponse.json({ processed: 0 });
-    }
+    if (newMessages.length === 0) return NextResponse.json({ processed: 0 });
 
-    // Save the latest message ID so next poll skips it
     await supabase
       .from("support_settings")
-      .upsert({ key: "last_gmail_message_id", value: messages[0].id! });
+      .upsert({ key: "last_gmail_message_id", value: messages[0].id as string });
 
     let processed = 0;
     for (const msg of newMessages) {
-      const email = await getEmailContent(msg.id!);
+      if (!msg.id) continue;
+      const email = await getEmailContent(msg.id);
       if (!email) continue;
 
-      // Skip reply loops and system emails
       if (
         email.fromEmail.includes("tubetarzan.com") ||
         email.fromEmail.includes("noreply@") ||
@@ -88,7 +76,6 @@ export async function POST(req: NextRequest) {
 
       if (!email.body || email.body.trim().length < 5) continue;
 
-      // Skip if already processed (check by gmail thread ID)
       const { data: existing } = await supabase
         .from("support_conversations")
         .select("id")
