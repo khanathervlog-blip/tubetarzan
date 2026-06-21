@@ -122,25 +122,25 @@ export async function runSupportPipeline(
   let status = "open";
   let autoReplied = false;
 
-  if (input.channel === "email" && input.gmailThreadId) {
+  if (input.channel === "email" && input.contactEmail) {
     if (shouldAutoReply) {
-      const sent = await sendGmailReply(
-        input.gmailThreadId,
-        input.contactEmail!,
-        input.subject || "Support",
-        reply
-      );
-      if (sent) {
+      const subject = input.subject || "Support";
+      const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
+      try {
+        await resend.emails.send({
+          from: "TubeTarzan Support <support@tubetarzan.com>",
+          to: input.contactEmail,
+          subject: replySubject,
+          text: reply + "\n\n--\nTubeTarzan Support\nsupport@tubetarzan.com",
+        });
         status = "auto_resolved";
         autoReplied = true;
+      } catch (err) {
+        console.error("Resend reply failed:", err);
+        status = "needs_review";
+        await notifyAdmin(input, reply, confidence, threshold);
       }
     } else {
-      await createGmailDraft(
-        input.gmailThreadId,
-        input.contactEmail!,
-        input.subject || "Support",
-        reply.replace("ESCALATE: ", "")
-      );
       status = "needs_review";
       autoReplied = false;
       await notifyAdmin(input, reply, confidence, threshold);
