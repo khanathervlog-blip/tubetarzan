@@ -15,7 +15,9 @@ function getGmailClient() {
 
 export async function POST(req: NextRequest) {
   const auth = req.headers.get("authorization");
-  const isCron = auth === `Bearer ${process.env.CRON_SECRET}`;
+  const isCron = process.env.CRON_SECRET
+    ? auth === `Bearer ${process.env.CRON_SECRET}`
+    : req.headers.get("x-vercel-cron") === "1";
 
   if (!isCron) {
     const supabase = await createClient();
