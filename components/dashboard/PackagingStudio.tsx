@@ -14,8 +14,8 @@ export default function PackagingStudio() {
   const [step, setStep] = useState<Step>(1);
   const [title, setTitle] = useState("");
   const [titleScore, setTitleScore] = useState(0);
-  const [altTitles, setAltTitles] = useState<ThumbnailOption[]>([]);
-  const [genAltTitles, setGenAltTitles] = useState(false);
+  const [_altTitles, setAltTitles] = useState<ThumbnailOption[]>([]);
+  const [_genAltTitles, _setGenAltTitles] = useState(false);
   const [selectedTitle, setSelectedTitle] = useState("");
 
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
@@ -240,7 +240,7 @@ export default function PackagingStudio() {
         <div className="space-y-6">
           <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6">
             <h2 className="font-semibold text-white mb-1">Step 2 — Thumbnail Text</h2>
-            <p className="text-[#555555] text-sm mb-1">Your title: <span className="text-white">"{activeTitle}"</span></p>
+            <p className="text-[#555555] text-sm mb-1">Your title: <span className="text-white">&quot;{activeTitle}&quot;</span></p>
             <p className="text-[#555555] text-sm mb-4">The 2-4 words that go on your thumbnail. Must pair with your title to maximise CTR.</p>
 
             {loadingThumbnail && (
@@ -282,7 +282,7 @@ export default function PackagingStudio() {
           {selectedThumbnail && (
             <button onClick={() => { setStep(3); generateHooks(); }}
               className="w-full bg-[#FFD200] text-[#080808] font-bold py-3 rounded-btn hover:bg-[#FFE033] transition-colors">
-              Use "{selectedThumbnail}" in Step 3 →
+              Use &quot;{selectedThumbnail}&quot; in Step 3 →
             </button>
           )}
         </div>
@@ -294,7 +294,7 @@ export default function PackagingStudio() {
           <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6">
             <h2 className="font-semibold text-white mb-1">Step 3 — Hook Generator</h2>
             <div className="flex gap-4 text-xs text-[#555555] mb-4">
-              <span>Title: <span className="text-white">"{activeTitle}"</span></span>
+              <span>Title: <span className="text-white">&quot;{activeTitle}&quot;</span></span>
               <span>Thumbnail: <span className="text-[#FFD200] font-bold">{selectedThumbnail}</span></span>
             </div>
             <div className="mb-4">
@@ -360,7 +360,7 @@ export default function PackagingStudio() {
           {clickConfirmation && (
             <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
               <h3 className="text-xs font-semibold text-[#999999] uppercase mb-2">Click Confirmation</h3>
-              <p className="text-white text-sm leading-relaxed">"{clickConfirmation}"</p>
+              <p className="text-white text-sm leading-relaxed">&quot;{clickConfirmation}&quot;</p>
               <p className="text-[#22C55E] text-xs mt-2">✓ Strong promise — specific and creates anticipation</p>
             </div>
           )}
