@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 import { scoreTitle } from "@/lib/scoring";
+import type { Profile } from "@/types/database";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json() as {
-    type: "thumbnail" | "hooks" | "outline" | "policy";
+    type: "thumbnail" | "hooks" | "outline" | "policy" | "description" | "tags";
     title: string;
     thumbnailText?: string;
     topic?: string;
@@ -17,6 +18,20 @@ export async function POST(request: NextRequest) {
 
   const { type, title, thumbnailText, topic } = body;
   if (!type || !title) return NextResponse.json({ error: "type and title required" }, { status: 400 });
+
+  // Steps 5-6 (description + tags) require Creator plan or above
+  if (type === "description" || type === "tags") {
+    const { data: profileRaw } = await supabase.from("profiles").select("subscription_plan").eq("id", user.id).single();
+    const plan = (profileRaw as Pick<Profile, "subscription_plan"> | null)?.subscription_plan || "free";
+    const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map(e => e.trim()).includes(user.email || "");
+    if (plan === "free" && !isAdmin) {
+      return NextResponse.json({
+        error: "Description and Tags generation requires Creator plan or above.",
+        upgradeRequired: true,
+        plan: "free",
+      }, { status: 403 });
+    }
+  }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 

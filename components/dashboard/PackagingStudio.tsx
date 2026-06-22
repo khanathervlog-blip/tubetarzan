@@ -132,6 +132,10 @@ export default function PackagingStudio() {
         body: JSON.stringify({ type: "description", title: activeTitle, topic }),
       });
       const data = await res.json();
+      if (res.status === 403 && data.upgradeRequired) {
+        setDescription("__upgrade__");
+        return;
+      }
       if (!res.ok) { showToast(data.error || "Generation failed"); return; }
       setDescription(data.description || "");
       setHashtags(data.hashtags || []);
@@ -517,7 +521,17 @@ export default function PackagingStudio() {
               </div>
             )}
 
-            {description && !loadingDescription && (
+            {description === "__upgrade__" && !loadingDescription && (
+              <div className="bg-[#FFD200]/5 border border-[#FFD200]/20 rounded-card p-6 text-center">
+                <p className="text-[#FFD200] font-bold text-sm mb-1">Creator Plan Required</p>
+                <p className="text-[#999999] text-sm mb-4">SEO Description generation is available on Creator plan and above.</p>
+                <a href="/#pricing" className="inline-flex items-center gap-2 bg-[#FFD200] text-[#080808] font-bold px-5 py-2.5 rounded-btn text-sm hover:bg-[#FFE033]">
+                  Upgrade Now →
+                </a>
+              </div>
+            )}
+
+            {description && description !== "__upgrade__" && !loadingDescription && (
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs text-[#999999] uppercase mb-2">Description</label>
@@ -573,7 +587,7 @@ export default function PackagingStudio() {
             )}
           </div>
 
-          {description && (
+          {description && description !== "__upgrade__" && (
             <button onClick={() => { setStep(6); generateTags(); }}
               className="w-full bg-[#FFD200] text-[#080808] font-bold py-3 rounded-btn hover:bg-[#FFE033] transition-colors flex items-center justify-center gap-2">
               <Tag className="w-4 h-4" />

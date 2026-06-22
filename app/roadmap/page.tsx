@@ -13,30 +13,30 @@ const SHIPPED = [
   "Competitor channel analysis",
   "My Channel — connect and sync YouTube videos",
   "One-click apply title, description, and tags to YouTube",
-  "Packaging Studio — 4-step AI title and thumbnail wizard",
+  "Packaging Studio — 6-step AI wizard (title, thumbnail, hook, outline, description, tags)",
   "Fix All — bulk video optimisation for Pro & Agency",
-  "Idea tracker with AI generation",
+  "Idea tracker with AI generation and CSV export",
   "Tag bank — save and reuse tag sets",
   "LemonSqueezy payment integration",
+  "AI Support Agent — email support with RAG knowledge base",
+  "Script Writer — full word-for-word AI script generation",
+  "Analytics Dashboard — personal stats and content pipeline",
+  "Niche Library — saved niche history with VPH and outlier data",
+  "Admin broadcast email to user segments",
 ];
 
-const IN_PROGRESS = [
-  "AI support chat widget (Tarzan chat agent)",
-  "Admin support inbox with conversation management",
-  "Knowledge base manager for support automation",
-];
+const IN_PROGRESS: string[] = [];
 
 const PLANNED = [
   "Thumbnail A/B test tracker",
-  "Channel analytics dashboard (CTR, retention, revenue trends)",
-  "Team collaboration seats (Agency plan)",
   "Scheduled niche scan digests via email",
   "Chrome extension — get VPH data directly on YouTube",
   "Mobile app (iOS & Android)",
   "API access for power users",
   "Video series planner (chain related viral topics)",
-  "Niche research saved libraries",
+  "Team collaboration seats (Agency plan)",
   "Direct Canva thumbnail template integration",
+  "Viral alert emails — notify when a new outlier drops in your niche",
 ];
 
 export default function RoadmapPage() {
@@ -62,24 +62,26 @@ export default function RoadmapPage() {
           </p>
         </div>
 
-        {/* In Progress */}
-        <div className="mb-10">
-          <div className="flex items-center gap-2 mb-5">
-            <Loader2 className="w-4 h-4 text-[#FFB700] animate-spin" />
-            <h2 className="font-display font-bold text-xl text-white">In Progress</h2>
-            <span className="bg-[#FFB700]/10 text-[#FFB700] text-xs font-bold px-2.5 py-0.5 rounded-full">
-              {IN_PROGRESS.length} items
-            </span>
+        {/* In Progress — hidden when empty */}
+        {IN_PROGRESS.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-5">
+              <Loader2 className="w-4 h-4 text-[#FFB700] animate-spin" />
+              <h2 className="font-display font-bold text-xl text-white">In Progress</h2>
+              <span className="bg-[#FFB700]/10 text-[#FFB700] text-xs font-bold px-2.5 py-0.5 rounded-full">
+                {IN_PROGRESS.length} items
+              </span>
+            </div>
+            <div className="bg-[#111111] border border-[#FFB700]/20 rounded-2xl p-6 space-y-3">
+              {IN_PROGRESS.map((item) => (
+                <div key={item} className="flex items-start gap-3">
+                  <Loader2 className="w-4 h-4 text-[#FFB700] mt-0.5 shrink-0 animate-spin" />
+                  <span className="text-white text-sm">{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="bg-[#111111] border border-[#FFB700]/20 rounded-2xl p-6 space-y-3">
-            {IN_PROGRESS.map((item) => (
-              <div key={item} className="flex items-start gap-3">
-                <Loader2 className="w-4 h-4 text-[#FFB700] mt-0.5 shrink-0 animate-spin" />
-                <span className="text-white text-sm">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* Planned */}
         <div className="mb-10">

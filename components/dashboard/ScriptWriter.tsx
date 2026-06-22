@@ -70,6 +70,10 @@ export default function ScriptWriter() {
         body: JSON.stringify({ title, topic: topic || title, hook, outline, style, duration }),
       });
       const data = await res.json();
+      if (res.status === 429 && data.upgradeRequired) {
+        setError(`Daily limit reached. Free plan allows ${2} scripts per day. Upgrade to Creator for unlimited scripts.`);
+        return;
+      }
       if (!res.ok) { setError(data.error || "Generation failed"); return; }
       setScript(data);
     } catch {
@@ -238,7 +242,16 @@ export default function ScriptWriter() {
           )}
         </button>
 
-        {error && <p className="text-[#FF3B3B] text-sm">{error}</p>}
+        {error && (
+          <div className={`text-sm p-4 rounded-btn ${error.includes("Upgrade") || error.includes("limit") ? "bg-[#FFD200]/5 border border-[#FFD200]/20 text-[#FFD200]" : "text-[#FF3B3B]"}`}>
+            <p>{error}</p>
+            {(error.includes("Upgrade") || error.includes("limit")) && (
+              <a href="/#pricing" className="inline-flex items-center gap-2 mt-3 bg-[#FFD200] text-[#080808] font-bold px-4 py-2 rounded-btn text-xs hover:bg-[#FFE033]">
+                Upgrade to Creator →
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Script Output */}

@@ -8,6 +8,20 @@ export const metadata = {
 
 const CHANGES = [
   {
+    version: "1.5",
+    date: "June 2025",
+    tag: "New",
+    tagColor: "bg-[#22C55E]/10 text-[#22C55E]",
+    items: [
+      "Script Writer — AI generates a full word-for-word YouTube script with B-roll cues, style selector (educational / tutorial / storytime / listicle / commentary), and download as .txt",
+      "Packaging Studio expanded to 6 steps — Step 5: SEO description generator with keywords and hashtags. Step 6: 30-tag research tool with priority tags highlighted",
+      "Analytics Dashboard — personal stats: ideas created, content pipeline breakdown, top niches, avg ideas/week, monthly overview",
+      "Niche Library — every niche you've searched with avg VPH, outlier ratio, idea counts, and one-click re-search",
+      "Idea Tracker CSV export — download all your ideas as a spreadsheet",
+      "Admin broadcast email — send HTML emails to any user segment (free, paid, trial) directly from the admin panel",
+    ],
+  },
+  {
     version: "1.4",
     date: "June 2025",
     tag: "New",
