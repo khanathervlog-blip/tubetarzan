@@ -10,6 +10,9 @@ import {
   Settings,
   LogOut,
   Package,
+  FileText,
+  BarChart3,
+  Bookmark,
 } from "lucide-react";
 import type { Profile } from "@/types/database";
 import AnnouncementBarWrapper from "@/components/shared/AnnouncementBarWrapper";
@@ -19,7 +22,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/ideas", label: "Idea Tracker", icon: Lightbulb },
   { href: "/dashboard/channel", label: "My Channel", icon: Video },
   { href: "/dashboard/packaging", label: "Packaging Studio", icon: Package },
+  { href: "/dashboard/script", label: "Script Writer", icon: FileText },
   { href: "/dashboard/competitors", label: "Competitors", icon: Users },
+  { href: "/dashboard/niches", label: "Niche Library", icon: Bookmark },
+  { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 

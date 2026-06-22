@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Package, Check, Loader2, Copy, Save, RotateCcw, Shield, ChevronRight } from "lucide-react";
+import { Package, Check, Loader2, Copy, Save, RotateCcw, Shield, ChevronRight, FileText, Tag } from "lucide-react";
 import { scoreTitle } from "@/lib/scoring";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface ThumbnailOption { text: string; score: number; why: string }
 interface Hook { text: string; type: string; strength: number }
@@ -14,10 +14,6 @@ export default function PackagingStudio() {
   const [step, setStep] = useState<Step>(1);
   const [title, setTitle] = useState("");
   const [titleScore, setTitleScore] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [altTitles, setAltTitles] = useState<ThumbnailOption[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [genAltTitles, setGenAltTitles] = useState(false);
   const [selectedTitle, setSelectedTitle] = useState("");
 
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
@@ -34,6 +30,18 @@ export default function PackagingStudio() {
   const [loadingOutline, setLoadingOutline] = useState(false);
   const [policyResult, setPolicyResult] = useState<{ status: string; checks: { pass: boolean; text: string }[]; summary: string } | null>(null);
   const [loadingPolicy, setLoadingPolicy] = useState(false);
+
+  const [description, setDescription] = useState("");
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [loadingDescription, setLoadingDescription] = useState(false);
+  const [descriptionCopied, setDescriptionCopied] = useState(false);
+
+  const [tags, setTags] = useState<string[]>([]);
+  const [primaryTags, setPrimaryTags] = useState<string[]>([]);
+  const [tagTip, setTagTip] = useState("");
+  const [loadingTags, setLoadingTags] = useState(false);
+  const [tagsCopied, setTagsCopied] = useState(false);
 
   const [toast, setToast] = useState<string | null>(null);
   const [savedToTracker, setSavedToTracker] = useState(false);
@@ -115,6 +123,40 @@ export default function PackagingStudio() {
     finally { setLoadingOutline(false); setLoadingPolicy(false); }
   }
 
+  async function generateDescription() {
+    setLoadingDescription(true);
+    try {
+      const res = await fetch("/api/packaging/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "description", title: activeTitle, topic }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Generation failed"); return; }
+      setDescription(data.description || "");
+      setHashtags(data.hashtags || []);
+      setKeywords(data.keywords || []);
+    } catch { showToast("Network error"); }
+    finally { setLoadingDescription(false); }
+  }
+
+  async function generateTags() {
+    setLoadingTags(true);
+    try {
+      const res = await fetch("/api/packaging/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "tags", title: activeTitle, topic }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Generation failed"); return; }
+      setTags(data.tags || []);
+      setPrimaryTags(data.primary_tags || []);
+      setTagTip(data.tip || "");
+    } catch { showToast("Network error"); }
+    finally { setLoadingTags(false); }
+  }
+
   async function saveToTracker() {
     try {
       const res = await fetch("/api/ideas/save", {
@@ -128,7 +170,7 @@ export default function PackagingStudio() {
             click_confirmation: clickConfirmation,
             sub_niche_keyword: topic || activeTitle,
             packaging_notes: `Packaged via Packaging Studio`,
-            suggested_tags: [],
+            suggested_tags: tags.slice(0, 15),
             title_score: titleScore,
           },
           sourceVideo: null,
@@ -146,10 +188,28 @@ export default function PackagingStudio() {
     showToast("Complete packaging copied!");
   }
 
+  function copyDescription() {
+    navigator.clipboard.writeText(description + "\n\n" + hashtags.join(" "));
+    setDescriptionCopied(true);
+    setTimeout(() => setDescriptionCopied(false), 2000);
+    showToast("Description copied!");
+  }
+
+  function copyTags() {
+    navigator.clipboard.writeText(tags.join(", "));
+    setTagsCopied(true);
+    setTimeout(() => setTagsCopied(false), 2000);
+    showToast("Tags copied!");
+  }
+
   function resetAll() {
-    setStep(1); setTitle(""); setSelectedTitle(""); setAltTitles([]); setThumbnailOptions([]);
-    setSelectedThumbnail(""); setHooks([]); setSelectedHook(""); setClickConfirmation("");
-    setOutline([]); setPolicyResult(null); setSavedToTracker(false); setTopic("");
+    setStep(1); setTitle(""); setSelectedTitle("");
+    setThumbnailOptions([]); setSelectedThumbnail("");
+    setHooks([]); setSelectedHook(""); setClickConfirmation("");
+    setOutline([]); setPolicyResult(null);
+    setDescription(""); setHashtags([]); setKeywords([]);
+    setTags([]); setPrimaryTags([]); setTagTip("");
+    setSavedToTracker(false); setTopic("");
   }
 
   const steps = [
@@ -157,6 +217,8 @@ export default function PackagingStudio() {
     { n: 2, label: "Thumbnail" },
     { n: 3, label: "Hook" },
     { n: 4, label: "Script" },
+    { n: 5, label: "Description" },
+    { n: 6, label: "Tags" },
   ];
 
   return (
@@ -167,15 +229,15 @@ export default function PackagingStudio() {
           <Package className="w-6 h-6 text-[#FFD200]" />
           Video Packaging Studio
         </h1>
-        <p className="text-[#555555] text-sm">The 4-step formula that determines if your video gets clicked or ignored.</p>
+        <p className="text-[#555555] text-sm">The 6-step formula: title → thumbnail → hook → script → description → tags.</p>
       </div>
 
       {/* Step progress */}
-      <div className="flex items-center gap-1 mb-8">
+      <div className="flex items-center gap-1 mb-8 flex-wrap">
         {steps.map((s, i) => (
           <div key={s.n} className="flex items-center gap-1">
             <button
-              onClick={() => { if (s.n < step || (s.n === step)) setStep(s.n as Step); }}
+              onClick={() => { if (s.n <= step) setStep(s.n as Step); }}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-badge text-xs font-medium transition-colors ${
                 step === s.n ? "bg-[#FFD200] text-[#080808]" :
                 step > s.n ? "bg-[#22C55E]/20 text-[#22C55E]" :
@@ -358,7 +420,6 @@ export default function PackagingStudio() {
             </div>
           )}
 
-          {/* Click confirmation */}
           {clickConfirmation && (
             <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
               <h3 className="text-xs font-semibold text-[#999999] uppercase mb-2">Click Confirmation</h3>
@@ -367,7 +428,6 @@ export default function PackagingStudio() {
             </div>
           )}
 
-          {/* Outline */}
           {outline.length > 0 && (
             <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
               <h3 className="text-xs font-semibold text-[#999999] uppercase mb-4">Script Outline</h3>
@@ -391,7 +451,6 @@ export default function PackagingStudio() {
             </div>
           )}
 
-          {/* Policy check */}
           {policyResult && (
             <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
               <div className="flex items-center gap-2 mb-3">
@@ -409,7 +468,6 @@ export default function PackagingStudio() {
             </div>
           )}
 
-          {/* Final summary */}
           {activeTitle && selectedThumbnail && selectedHook && (
             <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
               <h3 className="text-xs font-semibold text-[#999999] uppercase mb-3">Your Complete Packaging</h3>
@@ -422,18 +480,203 @@ export default function PackagingStudio() {
               </div>
               <div className="flex flex-wrap gap-2 mt-4">
                 <button onClick={copyAll} className="flex items-center gap-2 bg-[#FFD200] text-[#080808] font-bold px-4 py-2.5 rounded-btn hover:bg-[#FFE033] text-sm">
-                  <Copy className="w-3.5 h-3.5" />Copy Complete Packaging
+                  <Copy className="w-3.5 h-3.5" />Copy Packaging
                 </button>
                 <button onClick={saveToTracker} disabled={savedToTracker}
                   className="flex items-center gap-2 bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white px-4 py-2.5 rounded-btn text-sm transition-colors disabled:opacity-50">
-                  {savedToTracker ? <><Check className="w-3.5 h-3.5 text-[#22C55E]" />Saved!</> : <><Save className="w-3.5 h-3.5" />Save to Idea Tracker</>}
+                  {savedToTracker ? <><Check className="w-3.5 h-3.5 text-[#22C55E]" />Saved!</> : <><Save className="w-3.5 h-3.5" />Save to Tracker</>}
                 </button>
                 <button onClick={resetAll} className="flex items-center gap-2 bg-[#111111] border border-[#1E1E1E] text-[#555555] hover:text-white px-4 py-2.5 rounded-btn text-sm transition-colors">
-                  <RotateCcw className="w-3.5 h-3.5" />Start New Package
+                  <RotateCcw className="w-3.5 h-3.5" />Start New
                 </button>
               </div>
             </div>
           )}
+
+          {outline.length > 0 && (
+            <button onClick={() => { setStep(5); generateDescription(); }}
+              className="w-full bg-[#FFD200] text-[#080808] font-bold py-3 rounded-btn hover:bg-[#FFE033] transition-colors flex items-center justify-center gap-2">
+              <FileText className="w-4 h-4" />
+              Generate Description in Step 5 →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* STEP 5: Description */}
+      {step === 5 && (
+        <div className="space-y-6">
+          <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6">
+            <h2 className="font-semibold text-white mb-1">Step 5 — SEO Description</h2>
+            <p className="text-[#555555] text-sm mb-4">AI-written description with keywords, timestamps placeholder, and hashtags.</p>
+
+            {loadingDescription && (
+              <div className="flex items-center gap-2 text-[#555555] py-6">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Writing SEO description...</span>
+              </div>
+            )}
+
+            {description && !loadingDescription && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs text-[#999999] uppercase mb-2">Description</label>
+                  <textarea
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    rows={10}
+                    className="w-full bg-[#080808] border border-[#1E1E1E] text-white rounded-btn px-4 py-3 text-sm focus:outline-none focus:border-[#FFD200] resize-none leading-relaxed"
+                  />
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[#555555] text-xs">{description.length} chars</span>
+                    {description.length > 4900 && <span className="text-[#FF3B3B] text-xs">⚠ Near 5000 char limit</span>}
+                  </div>
+                </div>
+
+                {hashtags.length > 0 && (
+                  <div>
+                    <label className="block text-xs text-[#999999] uppercase mb-2">Hashtags</label>
+                    <div className="flex flex-wrap gap-2">
+                      {hashtags.map(h => (
+                        <span key={h} className="bg-[#FFD200]/10 text-[#FFD200] text-xs px-2.5 py-1 rounded-badge border border-[#FFD200]/20">
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {keywords.length > 0 && (
+                  <div>
+                    <label className="block text-xs text-[#999999] uppercase mb-2">Target Keywords</label>
+                    <div className="flex flex-wrap gap-2">
+                      {keywords.map(k => (
+                        <span key={k} className="bg-[#1E1E1E] text-[#999999] text-xs px-2.5 py-1 rounded-badge">
+                          {k}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button onClick={copyDescription}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-btn text-sm font-bold transition-colors ${descriptionCopied ? "bg-[#22C55E] text-white" : "bg-[#FFD200] text-[#080808] hover:bg-[#FFE033]"}`}>
+                    {descriptionCopied ? <><Check className="w-3.5 h-3.5" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy Description + Hashtags</>}
+                  </button>
+                  <button onClick={generateDescription} disabled={loadingDescription}
+                    className="bg-[#1E1E1E] text-[#999999] hover:text-white text-sm px-4 py-2 rounded-btn transition-colors disabled:opacity-50">
+                    ↻ Regenerate
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {description && (
+            <button onClick={() => { setStep(6); generateTags(); }}
+              className="w-full bg-[#FFD200] text-[#080808] font-bold py-3 rounded-btn hover:bg-[#FFE033] transition-colors flex items-center justify-center gap-2">
+              <Tag className="w-4 h-4" />
+              Generate Tags in Step 6 →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* STEP 6: Tags */}
+      {step === 6 && (
+        <div className="space-y-6">
+          <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6">
+            <h2 className="font-semibold text-white mb-1">Step 6 — Video Tags</h2>
+            <p className="text-[#555555] text-sm mb-4">30 optimized tags ordered by search volume. Copy and paste directly into YouTube.</p>
+
+            {loadingTags && (
+              <div className="flex items-center gap-2 text-[#555555] py-6">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Researching tags...</span>
+              </div>
+            )}
+
+            {tags.length > 0 && !loadingTags && (
+              <div className="space-y-4">
+                {primaryTags.length > 0 && (
+                  <div>
+                    <label className="block text-xs text-[#FFD200] uppercase mb-2 font-semibold">Top 5 Priority Tags</label>
+                    <div className="flex flex-wrap gap-2">
+                      {primaryTags.map(t => (
+                        <span key={t} className="bg-[#FFD200]/10 text-[#FFD200] text-sm px-3 py-1 rounded-badge border border-[#FFD200]/20 font-medium">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs text-[#999999] uppercase mb-2">All 30 Tags</label>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.map(t => (
+                      <span key={t} className={`text-xs px-2.5 py-1 rounded-badge border ${primaryTags.includes(t) ? "bg-[#FFD200]/10 text-[#FFD200] border-[#FFD200]/20" : "bg-[#1E1E1E] text-[#999999] border-[#2E2E2E]"}`}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {tagTip && (
+                  <p className="text-[#555555] text-xs border-t border-[#1E1E1E] pt-3">
+                    💡 {tagTip}
+                  </p>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button onClick={copyTags}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-btn text-sm font-bold transition-colors ${tagsCopied ? "bg-[#22C55E] text-white" : "bg-[#FFD200] text-[#080808] hover:bg-[#FFE033]"}`}>
+                    {tagsCopied ? <><Check className="w-3.5 h-3.5" />Copied!</> : <><Copy className="w-3.5 h-3.5" />Copy All Tags</>}
+                  </button>
+                  <button onClick={generateTags} disabled={loadingTags}
+                    className="bg-[#1E1E1E] text-[#999999] hover:text-white text-sm px-4 py-2 rounded-btn transition-colors disabled:opacity-50">
+                    ↻ Regenerate
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Final summary card */}
+          <div className="bg-[#111111] border border-[#22C55E]/20 rounded-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Check className="w-4 h-4 text-[#22C55E]" />
+              <h3 className="font-semibold text-white">Video Fully Packaged</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+              <div className="bg-[#080808] rounded-btn p-3">
+                <p className="text-[#555555] text-xs mb-1">Title Score</p>
+                <p className={`font-bold text-lg ${titleScore >= 80 ? "text-[#22C55E]" : "text-[#FFB700]"}`}>{titleScore}/100</p>
+              </div>
+              <div className="bg-[#080808] rounded-btn p-3">
+                <p className="text-[#555555] text-xs mb-1">Tags Generated</p>
+                <p className="font-bold text-lg text-white">{tags.length}</p>
+              </div>
+              <div className="bg-[#080808] rounded-btn p-3">
+                <p className="text-[#555555] text-xs mb-1">Hashtags</p>
+                <p className="font-bold text-lg text-white">{hashtags.length}</p>
+              </div>
+              <div className="bg-[#080808] rounded-btn p-3">
+                <p className="text-[#555555] text-xs mb-1">Description</p>
+                <p className="font-bold text-lg text-[#22C55E]">{description ? "✓ Ready" : "—"}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={saveToTracker} disabled={savedToTracker}
+                className="flex items-center gap-2 bg-[#FFD200] text-[#080808] font-bold px-4 py-2.5 rounded-btn hover:bg-[#FFE033] text-sm disabled:opacity-70">
+                {savedToTracker ? <><Check className="w-3.5 h-3.5" />Saved!</> : <><Save className="w-3.5 h-3.5" />Save to Idea Tracker</>}
+              </button>
+              <button onClick={resetAll} className="flex items-center gap-2 bg-[#111111] border border-[#1E1E1E] text-[#555555] hover:text-white px-4 py-2.5 rounded-btn text-sm transition-colors">
+                <RotateCcw className="w-3.5 h-3.5" />Package New Video
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

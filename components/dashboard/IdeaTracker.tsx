@@ -1,13 +1,42 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Lightbulb, ChevronDown, Loader2 } from "lucide-react";
+import { Lightbulb, ChevronDown, Loader2, Download } from "lucide-react";
 import IdeaCard from "./IdeaCard";
 import type { ViralIdea } from "@/types/database";
 
 interface IdeaTrackerProps {
   showToast: (msg: string) => void;
   refreshKey?: number;
+}
+
+function exportToCSV(ideas: ViralIdea[]) {
+  const headers = [
+    "Title", "Niche", "Status", "Thumbnail Text", "Hook", "Title Score",
+    "Source Video", "Source VPH", "Source Outlier Ratio", "Notes", "Created At",
+  ];
+  const rows = ideas.map(i => [
+    `"${(i.video_title || "").replace(/"/g, '""')}"`,
+    `"${(i.niche || "").replace(/"/g, '""')}"`,
+    i.status || "",
+    `"${(i.thumbnail_text || "").replace(/"/g, '""')}"`,
+    `"${(i.hook_line || "").replace(/"/g, '""')}"`,
+    i.title_score ?? "",
+    `"${(i.source_video_title || "").replace(/"/g, '""')}"`,
+    i.source_vph ?? "",
+    i.source_outlier_ratio ?? "",
+    `"${(i.notes || "").replace(/"/g, '""')}"`,
+    i.created_at ? new Date(i.created_at).toLocaleDateString() : "",
+  ]);
+
+  const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `tubetarzan-ideas-${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function IdeaTracker({ showToast, refreshKey = 0 }: IdeaTrackerProps) {
@@ -74,6 +103,13 @@ export default function IdeaTracker({ showToast, refreshKey = 0 }: IdeaTrackerPr
             ({ideas.length})
           </span>
         </h2>
+        <button
+          onClick={() => { exportToCSV(ideas); showToast("Ideas exported to CSV!"); }}
+          className="flex items-center gap-1.5 bg-[#111111] border border-[#1E1E1E] text-[#555555] hover:text-white px-3 py-1.5 rounded-btn text-xs transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export CSV
+        </button>
       </div>
 
       {/* Active ideas */}

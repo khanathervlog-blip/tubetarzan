@@ -151,6 +151,72 @@ Return ONLY valid JSON:
       return NextResponse.json(JSON.parse(clean));
     }
 
+    if (type === "description") {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 800,
+        messages: [
+          { role: "system", content: "You are a YouTube SEO expert. Return only valid JSON." },
+          {
+            role: "user",
+            content: `Write an SEO-optimized YouTube video description for:
+Title: "${title}"
+Topic: "${topic || title}"
+
+The description should:
+- Start with a strong 2-3 sentence hook summarizing the video value
+- Include natural keyword placement (not stuffed)
+- Have timestamps placeholder section
+- Include a CTA to subscribe
+- End with 3-5 relevant hashtags
+- Be 200-350 words total
+
+Return ONLY valid JSON:
+{
+  "description": "full description text here...",
+  "hashtags": ["#tag1", "#tag2", "#tag3"],
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"]
+}`,
+          },
+        ],
+      });
+      const text = response.choices[0]?.message?.content || "";
+      const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      return NextResponse.json(JSON.parse(clean));
+    }
+
+    if (type === "tags") {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 600,
+        messages: [
+          { role: "system", content: "You are a YouTube SEO tag expert. Return only valid JSON." },
+          {
+            role: "user",
+            content: `Generate 30 optimized YouTube tags for this video:
+Title: "${title}"
+Topic: "${topic || title}"
+
+Rules:
+- Mix of exact match, broad, and long-tail tags
+- Include the main topic, related topics, and question-based tags
+- Each tag under 30 characters where possible
+- Order by search volume (highest first)
+
+Return ONLY valid JSON:
+{
+  "tags": ["tag1", "tag2", "tag3", "...up to 30 tags"],
+  "primary_tags": ["top 5 most important tags"],
+  "tip": "one sentence tip about these tags"
+}`,
+          },
+        ],
+      });
+      const text = response.choices[0]?.message?.content || "";
+      const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      return NextResponse.json(JSON.parse(clean));
+    }
+
     return NextResponse.json({ error: "Unknown type" }, { status: 400 });
   } catch (err) {
     console.error("Packaging generate error:", err);

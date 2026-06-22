@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Zap, X, Trash2, Info } from "lucide-react";
 import NicheBar from "./NicheBar";
 import QuotaMeter from "./QuotaMeter";
@@ -99,6 +99,18 @@ export default function IntelligenceBoardPage({
       .catch(() => {})
       .finally(() => setIsLoadingHistory(false));
   }, [isAdmin]);
+
+  const nicheParamRef = useRef(false);
+  useEffect(() => {
+    if (isLoadingHistory || nicheParamRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const niche = params.get("niche");
+    if (niche) {
+      nicheParamRef.current = true;
+      handleSearch(niche);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoadingHistory]);
 
   const scanLimit = isAdmin ? null : plan === "free" || plan === "creator" ? 3 : null;
 
