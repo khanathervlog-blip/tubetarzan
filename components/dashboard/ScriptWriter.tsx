@@ -1,7 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Loader2, Copy, Check, ChevronDown, ChevronUp, Download, Lightbulb } from "lucide-react";
+import { FileText, Loader2, Copy, Check, ChevronDown, ChevronUp, Download, Lightbulb, Shield, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+
+interface PolicyIssue {
+  type: string;
+  severity: "low" | "medium" | "high";
+  description: string;
+}
+
+interface PolicyResult {
+  overallRisk: "low" | "medium" | "high";
+  passed: boolean;
+  advertiserScore: number;
+  issues: PolicyIssue[];
+  summary: string;
+}
 
 interface ScriptSection {
   title: string;
@@ -50,6 +64,10 @@ export default function ScriptWriter() {
   const [copiedSection, setCopiedSection] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
 
+  const [policyResult, setPolicyResult] = useState<PolicyResult | null>(null);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
+
   const [toast, setToast] = useState<string | null>(null);
   function showToast(msg: string) {
     setToast(msg);
@@ -62,6 +80,8 @@ export default function ScriptWriter() {
     setError("");
     setScript(null);
     setExpandedSections(new Set([0]));
+    setPolicyResult(null);
+    setShowPolicy(false);
 
     try {
       const res = await fetch("/api/script/generate", {
@@ -107,6 +127,33 @@ export default function ScriptWriter() {
     setCopiedAll(true);
     setTimeout(() => setCopiedAll(false), 2000);
     showToast("Full script copied!");
+  }
+
+  async function checkPolicy() {
+    if (!script) return;
+    setPolicyLoading(true);
+    setShowPolicy(true);
+    setPolicyResult(null);
+    try {
+      const scriptExcerpt = script.sections
+        .slice(0, 2)
+        .map((s) => s.script)
+        .join("\n\n")
+        .slice(0, 2000);
+      const res = await fetch("/api/policy/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, description: topic || title, scriptExcerpt }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Policy check failed");
+      setPolicyResult(data as PolicyResult);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Policy check failed");
+      setShowPolicy(false);
+    } finally {
+      setPolicyLoading(false);
+    }
   }
 
   function downloadScript() {
@@ -272,8 +319,96 @@ export default function ScriptWriter() {
                 className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-bold bg-[#1E1E1E] text-[#999999] hover:text-white transition-colors">
                 <Download className="w-3.5 h-3.5" />Download
               </button>
+              <button onClick={checkPolicy} disabled={policyLoading}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-btn text-xs font-bold bg-[#1E1E1E] text-[#999999] hover:text-white transition-colors disabled:opacity-50">
+                {policyLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
+                {policyLoading ? "Checking..." : "Policy Check"}
+              </button>
             </div>
           </div>
+
+          {/* Policy Check Results */}
+          {showPolicy && (
+            <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-[#FFD200]" />
+                  <p className="text-white font-semibold text-sm">YouTube Policy Check</p>
+                </div>
+                <button onClick={() => setShowPolicy(false)} className="text-[#555555] hover:text-white text-xs">
+                  Dismiss
+                </button>
+              </div>
+              {policyLoading && (
+                <div className="flex items-center gap-3 py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#FFD200]" />
+                  <p className="text-[#555555] text-sm">Analyzing your script for policy risks...</p>
+                </div>
+              )}
+              {policyResult && (
+                <div className="space-y-4">
+                  {/* Summary row */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-badge text-xs font-bold ${
+                      policyResult.passed
+                        ? "bg-[#22C55E]/10 text-[#22C55E] border border-[#22C55E]/20"
+                        : "bg-[#FF3B3B]/10 text-[#FF3B3B] border border-[#FF3B3B]/20"
+                    }`}>
+                      {policyResult.passed ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                      {policyResult.passed ? "Passes Policy" : "Policy Risk Detected"}
+                    </div>
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-badge text-xs font-bold border ${
+                      policyResult.overallRisk === "low"
+                        ? "bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20"
+                        : policyResult.overallRisk === "medium"
+                        ? "bg-[#FFD200]/10 text-[#FFD200] border-[#FFD200]/20"
+                        : "bg-[#FF3B3B]/10 text-[#FF3B3B] border-[#FF3B3B]/20"
+                    }`}>
+                      {policyResult.overallRisk === "low" ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+                      {policyResult.overallRisk.charAt(0).toUpperCase() + policyResult.overallRisk.slice(1)} Risk
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-[#999999]">
+                      <span>Advertiser Score:</span>
+                      <span className={`font-bold ${policyResult.advertiserScore >= 70 ? "text-[#22C55E]" : policyResult.advertiserScore >= 40 ? "text-[#FFD200]" : "text-[#FF3B3B]"}`}>
+                        {policyResult.advertiserScore}/100
+                      </span>
+                    </div>
+                  </div>
+                  {/* Summary */}
+                  <p className="text-[#999999] text-sm leading-relaxed">{policyResult.summary}</p>
+                  {/* Issues */}
+                  {policyResult.issues.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-[#555555] uppercase font-semibold">Issues Found</p>
+                      {policyResult.issues.map((issue, i) => (
+                        <div key={i} className={`flex gap-3 p-3 rounded-btn border text-sm ${
+                          issue.severity === "high"
+                            ? "border-[#FF3B3B]/20 bg-[#FF3B3B]/5"
+                            : issue.severity === "medium"
+                            ? "border-[#FFD200]/20 bg-[#FFD200]/5"
+                            : "border-[#1E1E1E] bg-[#0A0A0A]"
+                        }`}>
+                          <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${
+                            issue.severity === "high" ? "text-[#FF3B3B]" : issue.severity === "medium" ? "text-[#FFD200]" : "text-[#555555]"
+                          }`} />
+                          <div>
+                            <p className="text-white text-xs font-semibold capitalize">{issue.type.replace(/_/g, " ")}</p>
+                            <p className="text-[#999999] text-xs mt-0.5">{issue.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {policyResult.issues.length === 0 && (
+                    <div className="flex items-center gap-2 text-[#22C55E] text-sm">
+                      <CheckCircle className="w-4 h-4" />
+                      No policy issues detected. Your script looks clean.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Sections */}
           {script.sections.map((section, i) => (
@@ -337,7 +472,7 @@ export default function ScriptWriter() {
             )}
           </div>
 
-          <button onClick={() => { setScript(null); setTitle(""); setHook(""); setOutline(""); setTopic(""); }}
+          <button onClick={() => { setScript(null); setTitle(""); setHook(""); setOutline(""); setTopic(""); setPolicyResult(null); setShowPolicy(false); }}
             className="w-full bg-[#111111] border border-[#1E1E1E] text-[#555555] hover:text-white py-3 rounded-btn text-sm transition-colors">
             Write Another Script
           </button>
