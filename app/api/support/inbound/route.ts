@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEmailContent, getNewMessageIds } from "@/lib/support-gmail";
 import { runSupportPipeline } from "@/lib/support-pipeline";
+import { isAdminEmail } from "@/lib/email-guard";
 
 // Gmail Pub/Sub push webhook — fires when new email arrives
 export async function POST(req: NextRequest) {
@@ -36,6 +37,12 @@ export async function POST(req: NextRequest) {
         email.fromEmail.includes("mailer-daemon") ||
         email.fromEmail.includes("postmaster@")
       ) {
+        continue;
+      }
+
+      // In non-production environments, only process emails from admin addresses
+      // to prevent test runs from sending replies to real external inboxes.
+      if (process.env.NODE_ENV !== "production" && !isAdminEmail(email.fromEmail)) {
         continue;
       }
 

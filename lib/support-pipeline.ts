@@ -2,6 +2,7 @@
 import { searchKnowledgeBase, calculateConfidence, buildKnowledgeContext } from "./support-rag";
 import { generateSupportReply } from "./openai-support";
 import { createServiceClient } from "./supabase/server";
+import { isVerifiedRecipient } from "./email-guard";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -130,23 +131,31 @@ export async function runSupportPipeline(
     const replySubject = subject.startsWith("Re:") ? subject : `Re: ${subject}`;
     const cleanReply = reply.replace("ESCALATE: ", "").replace("ESCALATE:", "");
 
-    // Always send reply to customer
-    try {
-      await resend.emails.send({
-        from: "TubeTarzan Support <support@tubetarzan.com>",
-        to: input.contactEmail,
-        subject: replySubject,
-        text: cleanReply + "\n\n--\nTubeTarzan Support\nsupport@tubetarzan.com",
-      });
-      autoReplied = true;
-      status = shouldAutoReply ? "auto_resolved" : "needs_review";
-    } catch (err) {
-      console.error("Resend reply failed:", err);
+    // Only reply to verified TubeTarzan users or admins — prevents auto-replying
+    // to promotional/spam email arriving via Gmail Pub/Sub.
+    const verified = await isVerifiedRecipient(input.contactEmail);
+    if (verified) {
+      try {
+        await resend.emails.send({
+          from: "TubeTarzan Support <support@tubetarzan.com>",
+          to: input.contactEmail,
+          subject: replySubject,
+          text: cleanReply + "\n\n--\nTubeTarzan Support\nsupport@tubetarzan.com",
+        });
+        autoReplied = true;
+        status = shouldAutoReply ? "auto_resolved" : "needs_review";
+      } catch (err) {
+        console.error("Resend reply failed:", err);
+        status = "needs_review";
+      }
+    } else {
+      // Unknown sender — save draft for human review, do not auto-reply
       status = "needs_review";
+      autoReplied = false;
     }
 
-    // Notify admin when confidence is low
-    if (!shouldAutoReply) {
+    // Notify admin when confidence is low or sender is unverified
+    if (!shouldAutoReply || !verified) {
       await notifyAdmin(input, cleanReply, confidence, threshold);
     }
   } else if (input.channel === "chat") {

@@ -86,10 +86,11 @@ export async function POST(request: NextRequest) {
 
       // Send welcome email
       try {
+        if (!attrs.user_email) break;
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: "TubeTarzan <hello@tubetarzan.com>",
-          to: attrs.user_email || "",
+          to: attrs.user_email,
           subject: "Your TubeTarzan trial is live — 3 things to do today",
           html: `<p>Hi ${attrs.user_name || "there"},</p>
 <p>Your ${plan} trial is active! Here's what to do first:</p>
@@ -144,10 +145,11 @@ export async function POST(request: NextRequest) {
 
       // Send cancellation email
       try {
+        if (!attrs.user_email) break;
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: "TubeTarzan <hello@tubetarzan.com>",
-          to: attrs.user_email || "",
+          to: attrs.user_email,
           subject: "We're sorry to see you go",
           html: `<p>Your subscription has been cancelled. You'll keep access until ${attrs.ends_at}.</p>
 <p>If there was something we could have done better, reply to this email — we read every message.</p>
@@ -167,10 +169,11 @@ export async function POST(request: NextRequest) {
         .eq("id", userId);
 
       try {
+        if (!attrs.user_email) break;
         const resend = new Resend(process.env.RESEND_API_KEY);
         await resend.emails.send({
           from: "TubeTarzan <hello@tubetarzan.com>",
-          to: attrs.user_email || "",
+          to: attrs.user_email,
           subject: "Action needed: your TubeTarzan payment failed",
           html: `<p>Your recent payment failed. Please update your payment method to keep access.</p>
 <p><a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing">Update payment method →</a></p>`,

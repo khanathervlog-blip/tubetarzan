@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { isAdminEmail } from "@/lib/email-guard";
 import { Resend } from "resend";
 import type { Profile } from "@/types/database";
 
@@ -28,9 +29,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Subject and body are required" }, { status: 400 });
   }
 
-  // Test send
+  // Test send — restricted to admin emails only to prevent leaking test content
   if (testOnly) {
     const to = testEmail || user.email || adminEmails[0];
+    if (!isAdminEmail(to)) {
+      return NextResponse.json({ error: "Test emails can only be sent to admin addresses" }, { status: 400 });
+    }
     await resend.emails.send({
       from: "TubeTarzan <noreply@tubetarzan.com>",
       to,
