@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Upload, Video, Mic, Play, Download, Scissors, Loader2, CheckCircle2, AlertCircle, RefreshCw, Camera } from "lucide-react";
 
 interface Avatar {

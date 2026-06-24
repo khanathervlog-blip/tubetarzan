@@ -35,7 +35,7 @@ export default function CaptionsStudio() {
   const [language, setLanguage] = useState("Auto Detect");
   const [jobId, setJobId] = useState("");
   const [words, setWords] = useState<Word[]>([]);
-  const [srt, setSrt] = useState("");
+  const [srt, setSrt] = useState(""); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [languageDetected, setLanguageDetected] = useState("");
   const [wordCount, setWordCount] = useState(0);
   const [selectedStyle, setSelectedStyle] = useState("classic_white");
@@ -46,7 +46,7 @@ export default function CaptionsStudio() {
   const [currentTime, setCurrentTime] = useState(0);
   const [translating, setTranslating] = useState(false);
   const [targetLang, setTargetLang] = useState("Spanish");
-  const [burning, setBurning] = useState(false);
+  const [burning, setBurning] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [burnStatus, setBurnStatus] = useState<"idle" | "burning" | "complete" | "failed">("idle");
   const [outputUrl, setOutputUrl] = useState("");
   const [generating, setGenerating] = useState(false);
