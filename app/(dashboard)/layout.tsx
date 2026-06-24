@@ -25,6 +25,8 @@ import {
   ImageIcon,
   Flame,
   LayoutGrid,
+  Subtitles,
+  VideoIcon,
 } from "lucide-react";
 import type { Profile } from "@/types/database";
 import AnnouncementBarWrapper from "@/components/shared/AnnouncementBarWrapper";
@@ -61,6 +63,8 @@ const NAV_SECTIONS = [
       { href: "/dashboard/studio/batch", label: "Batch Content", icon: LayoutGrid },
       { href: "/dashboard/studio/thumbnail", label: "Thumbnail Generator", icon: ImageIcon },
       { href: "/dashboard/studio/publish", label: "Publish & Schedule", icon: Calendar },
+      { href: "/dashboard/studio/lipsync", label: "Lip Sync Studio", icon: VideoIcon },
+      { href: "/dashboard/studio/captions", label: "Auto Captions", icon: Subtitles },
     ],
   },
   {

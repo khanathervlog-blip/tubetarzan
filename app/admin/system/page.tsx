@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Server, CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { Server, CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw, Cpu } from "lucide-react";
+
+const RAILWAY_SERVICES = [
+  { name: "FFmpeg (video assembly)", desc: "Renders, B-roll assembly, video editing" },
+  { name: "Pattern Analyzer", desc: "yt-dlp + PySceneDetect for viral pattern detection" },
+  { name: "MuseTalk (lip sync)", desc: "Primary lip sync model — requires GPU (Railway Pro)" },
+  { name: "Wav2Lip (lip sync fallback)", desc: "CPU-capable fallback when GPU unavailable" },
+  { name: "faster-whisper (captions)", desc: "Word-level transcription in 96+ languages" },
+];
 
 interface ServiceResult {
   name: string;
@@ -118,6 +126,47 @@ export default function SystemPage() {
           </div>
         </div>
       )}
+
+      {/* Railway Microservices breakdown */}
+      <div className="mt-6 bg-[#111111] border border-[#1E1E1E] rounded-card overflow-hidden">
+        <div className="px-5 py-3 border-b border-[#1E1E1E] flex items-center gap-2">
+          <Cpu className="w-4 h-4 text-[#FFD200]" />
+          <p className="text-white text-sm font-semibold">Railway Microservice — Deployed Services</p>
+        </div>
+        <div className="divide-y divide-[#1E1E1E]">
+          {RAILWAY_SERVICES.map((svc) => {
+            const railwayService = services.find((s) => s.name === "Railway (FFmpeg)");
+            const isUp = railwayService?.status === "ok";
+            const isDown = railwayService?.status === "down";
+            return (
+              <div key={svc.name} className="px-5 py-3 flex items-center gap-4">
+                {services.length === 0 ? (
+                  <div className="w-2 h-2 rounded-full bg-[#333333]" />
+                ) : isUp ? (
+                  <div className="w-2 h-2 rounded-full bg-[#22C55E]" />
+                ) : isDown ? (
+                  <div className="w-2 h-2 rounded-full bg-[#FF3B3B]" />
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-[#FFD200]" />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm">{svc.name}</p>
+                  <p className="text-[#555555] text-xs">{svc.desc}</p>
+                </div>
+                <span className="text-xs text-[#333333]">
+                  {services.length === 0 ? "—" : isUp ? "active" : isDown ? "unreachable" : "degraded"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-5 py-3 border-t border-[#1E1E1E] bg-[#0A0A0A]">
+          <p className="text-[#555555] text-xs">
+            All services run on the same Railway container. GPU (MuseTalk) requires Railway Pro plan.
+            Status reflects the Railway (FFmpeg) health ping above.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

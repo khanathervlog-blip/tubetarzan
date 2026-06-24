@@ -29,8 +29,13 @@ import uvicorn
 
 from pattern_analyzer import analyze_video_pattern
 from video_assembler import assemble_video
+from lip_sync import router as lipsync_router
+from captions import router as captions_router
 
-app = FastAPI(title="TubeTarzan Media Service", version="1.0.0")
+app = FastAPI(title="TubeTarzan Media Service", version="2.0.0")
+
+app.include_router(lipsync_router)
+app.include_router(captions_router)
 
 app.add_middleware(
     CORSMiddleware,
