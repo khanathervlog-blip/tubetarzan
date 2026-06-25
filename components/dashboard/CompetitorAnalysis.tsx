@@ -27,12 +27,25 @@ export default function CompetitorAnalysis({ competitor, analysis, topVideos, on
   const stealIdeas = (analysis.steal_ideas as { title_idea: string; why: string }[]) || [];
   const contentStrategy = analysis.content_strategy as string || "";
   const thumbnailPatterns = analysis.thumbnail_patterns as string || "";
+  const channelMeta = (analysis.channelMeta as { joinedAt?: string | null; country?: string | null; avgDurationSeconds?: number | null } | undefined) || {};
 
   function formatSubs(n: number | null) {
     if (!n) return "—";
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
     return n.toString();
+  }
+
+  function formatDuration(seconds: number | null | undefined) {
+    if (!seconds) return "—";
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}m ${s}s`;
+  }
+
+  function formatJoinDate(dateStr: string | null | undefined) {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", year: "numeric" });
   }
 
   function copyToClipboard(text: string) {
@@ -78,7 +91,7 @@ export default function CompetitorAnalysis({ competitor, analysis, topVideos, on
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-4 gap-3 mb-4">
         {[
           { label: "Subscribers", value: formatSubs(competitor.subscriber_count) },
           { label: "Total Videos", value: competitor.video_count?.toLocaleString() || "—" },
@@ -91,6 +104,29 @@ export default function CompetitorAnalysis({ competitor, analysis, topVideos, on
           </div>
         ))}
       </div>
+      {/* Extra channel meta — populated after analysis */}
+      {(channelMeta.joinedAt || channelMeta.country || channelMeta.avgDurationSeconds) && (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {channelMeta.joinedAt && (
+            <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-3 text-center">
+              <p className="text-white font-bold text-sm">{formatJoinDate(channelMeta.joinedAt)}</p>
+              <p className="text-[#555555] text-xs mt-0.5">Joined YouTube</p>
+            </div>
+          )}
+          {channelMeta.country && (
+            <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-3 text-center">
+              <p className="text-white font-bold text-sm">{channelMeta.country}</p>
+              <p className="text-[#555555] text-xs mt-0.5">Country</p>
+            </div>
+          )}
+          {channelMeta.avgDurationSeconds != null && (
+            <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-3 text-center">
+              <p className="text-white font-bold text-sm">{formatDuration(channelMeta.avgDurationSeconds)}</p>
+              <p className="text-[#555555] text-xs mt-0.5">Avg Video Length</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {!hasAnalysis && !analysing && (
         <div className="bg-[#111111] border border-[#1E1E1E] rounded-card px-6 py-10 text-center mb-6">

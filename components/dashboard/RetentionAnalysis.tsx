@@ -118,8 +118,11 @@ export default function RetentionAnalysis({ channelVideos }: { channelVideos?: C
         {error && <div className="flex items-start gap-2 text-[#FF3B3B] text-sm"><AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{error}</div>}
         {needsAnalyticsScope && (
           <div className="bg-[#FFD200]/5 border border-[#FFD200]/20 rounded-btn p-4">
-            <p className="text-[#FFD200] text-sm font-semibold mb-1">YouTube Analytics access required</p>
-            <p className="text-[#555555] text-xs">Please disconnect and reconnect your YouTube channel from Settings to grant Analytics permissions. This unlocks retention curves, CTR data, and A/B testing insights.</p>
+            <p className="text-[#FFD200] text-sm font-semibold mb-1">YouTube Analytics permission needed</p>
+            <p className="text-[#555555] text-xs mb-3">Your channel was connected before Analytics scope was added. Reconnect to unlock retention curves, CTR data, and A/B testing insights.</p>
+            <a href="/api/auth/youtube/connect?return=dashboard" className="inline-flex items-center gap-1.5 bg-[#FFD200] text-[#080808] font-bold px-4 py-2 rounded-btn text-xs hover:bg-[#FFE033]">
+              Reconnect YouTube Channel →
+            </a>
           </div>
         )}
       </div>

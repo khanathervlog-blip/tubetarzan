@@ -61,13 +61,14 @@ export async function POST(request: Request) {
   // Set video title to variant A immediately
   try {
     const accessToken = await getValidAccessToken(user.id);
-    // Fetch current video data
+    // Fetch current video data using OAuth token so private/unlisted videos are found
     const videoRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${process.env.YOUTUBE_API_KEY}`
+      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
     );
     const videoData = await videoRes.json();
     const snippet = videoData.items?.[0]?.snippet;
-    if (!snippet) return NextResponse.json({ error: "Video not found" }, { status: 404 });
+    if (!snippet) return NextResponse.json({ error: "Video not found. Make sure you entered the correct Video ID (found in the URL: youtube.com/watch?v=VIDEO_ID)" }, { status: 404 });
 
     await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet", {
       method: "PUT",

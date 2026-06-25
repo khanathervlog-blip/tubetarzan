@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Trash2, Loader2 } from "lucide-react";
+import { Check, Trash2, Loader2, Expand } from "lucide-react";
 import type { ViralIdea, IdeaStatus } from "@/types/database";
+import IdeaDetailPanel from "./IdeaDetailPanel";
 
 const STATUS_OPTIONS: IdeaStatus[] = [
   "pending","scripting","recorded","uploaded","done",
@@ -32,6 +33,7 @@ export default function IdeaCard({
   const [notes, setNotes] = useState(idea.notes || "");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
 
   const isDone = idea.is_done;
 
@@ -96,6 +98,8 @@ export default function IdeaCard({
   const statusColor = STATUS_COLORS[idea.status as IdeaStatus] || "#555555";
 
   return (
+    <>
+    {showDetail && <IdeaDetailPanel idea={idea} onClose={() => setShowDetail(false)} />}
     <div
       className={`bg-[#111111] border rounded-card p-5 transition-opacity ${
         isDone ? "opacity-60 border-[#1E1E1E]" : "border-[#1E1E1E] hover:border-[#333333]"
@@ -103,9 +107,12 @@ export default function IdeaCard({
     >
       {/* Title */}
       <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
+        <button
+          onClick={() => setShowDetail(true)}
+          className="flex-1 min-w-0 text-left group"
+        >
           <p
-            className={`font-semibold text-sm leading-tight ${
+            className={`font-semibold text-sm leading-tight group-hover:text-[#FFD200] transition-colors ${
               isDone ? "line-through text-[#555555]" : "text-white"
             }`}
           >
@@ -116,22 +123,31 @@ export default function IdeaCard({
               {idea.thumbnail_text}
             </span>
           )}
-        </div>
-        {idea.title_score && (
-          <span
-            className="font-mono-stats text-xs font-bold flex-shrink-0"
-            style={{
-              color:
-                idea.title_score >= 80
-                  ? "#22C55E"
-                  : idea.title_score >= 60
-                  ? "#FFB700"
-                  : "#FF3B3B",
-            }}
+        </button>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {idea.title_score && (
+            <span
+              className="font-mono-stats text-xs font-bold"
+              style={{
+                color:
+                  idea.title_score >= 80
+                    ? "#22C55E"
+                    : idea.title_score >= 60
+                    ? "#FFB700"
+                    : "#FF3B3B",
+              }}
+            >
+              {idea.title_score}/100
+            </span>
+          )}
+          <button
+            onClick={() => setShowDetail(true)}
+            className="p-1 text-[#333333] hover:text-[#FFD200] transition-colors"
+            title="View full idea"
           >
-            {idea.title_score}/100
-          </span>
-        )}
+            <Expand className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Meta */}
@@ -229,5 +245,6 @@ export default function IdeaCard({
         </p>
       )}
     </div>
+    </>
   );
 }

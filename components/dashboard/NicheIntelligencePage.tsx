@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { DollarSign, ChevronUp, ChevronDown, Calculator } from "lucide-react";
+import { DollarSign, ChevronUp, ChevronDown, Calculator, Loader2, Plus } from "lucide-react";
 
 interface NicheData {
   niche: string;
@@ -56,7 +56,15 @@ export default function NicheIntelligencePage({
 }: {
   dbNiches?: NicheData[];
 }) {
-  const data = dbNiches && dbNiches.length > 0 ? dbNiches : NICHE_DATA;
+  const baseData = dbNiches && dbNiches.length > 0 ? dbNiches : NICHE_DATA;
+
+  const [customNiches, setCustomNiches] = useState<NicheData[]>([]);
+  const [customLookup, setCustomLookup] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+  const [lookupInsight, setLookupInsight] = useState("");
+
+  const data = [...baseData, ...customNiches];
 
   const [sortKey, setSortKey] = useState<SortKey>("rpm");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -68,6 +76,32 @@ export default function NicheIntelligencePage({
   const [selectedNiche, setSelectedNiche] = useState<NicheData | null>(null);
   const [viewsPerVideo, setViewsPerVideo] = useState(50000);
   const [videosPerMonth, setVideosPerMonth] = useState(8);
+
+  async function handleLookupNiche() {
+    if (!customLookup.trim()) return;
+    setLookingUp(true);
+    setLookupError("");
+    setLookupInsight("");
+    try {
+      const res = await fetch("/api/niches/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ niche: customLookup.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setLookupError(data.error || "Lookup failed"); return; }
+      const n = data.niche as NicheData & { insight?: string };
+      const already = customNiches.some(c => c.niche.toLowerCase() === n.niche.toLowerCase());
+      if (!already) setCustomNiches(prev => [...prev, n]);
+      if (n.insight) setLookupInsight(n.insight);
+      setCustomLookup("");
+      setSearchNiche(n.niche);
+    } catch {
+      setLookupError("Network error. Please try again.");
+    } finally {
+      setLookingUp(false);
+    }
+  }
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -129,6 +163,31 @@ export default function NicheIntelligencePage({
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Table */}
         <div className="lg:col-span-2 space-y-4">
+          {/* Custom niche lookup */}
+          <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-4 mb-2">
+            <p className="text-xs text-[#555555] font-medium mb-2">Look up any niche with AI</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customLookup}
+                onChange={e => setCustomLookup(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleLookupNiche()}
+                placeholder='e.g. "sports", "fishing", "luxury cars"...'
+                className="flex-1 bg-[#080808] border border-[#1E1E1E] text-white placeholder-[#555555] rounded-btn px-3 py-2 text-sm focus:outline-none focus:border-[#FFD200]"
+              />
+              <button
+                onClick={handleLookupNiche}
+                disabled={lookingUp || !customLookup.trim()}
+                className="flex items-center gap-1.5 bg-[#FFD200] text-[#080808] font-bold px-4 py-2 rounded-btn text-sm hover:bg-[#FFE033] disabled:opacity-50 shrink-0"
+              >
+                {lookingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {lookingUp ? "Looking up..." : "Add"}
+              </button>
+            </div>
+            {lookupError && <p className="text-[#FF3B3B] text-xs mt-2">{lookupError}</p>}
+            {lookupInsight && <p className="text-[#999999] text-xs mt-2 italic">{lookupInsight}</p>}
+          </div>
+
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <input
@@ -211,7 +270,12 @@ export default function NicheIntelligencePage({
                         <div className="flex items-center gap-2">
                           <span className="text-[#555555] text-xs w-5 shrink-0">{i + 1}</span>
                           <div>
-                            <p className="text-white text-sm font-medium">{n.niche}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-white text-sm font-medium">{n.niche}</p>
+                              {customNiches.some(c => c.niche === n.niche) && (
+                                <span className="text-[8px] font-bold bg-[#FFD200]/10 text-[#FFD200] px-1.5 py-0.5 rounded uppercase">AI</span>
+                              )}
+                            </div>
                             <p className="text-[#555555] text-xs">{n.category}</p>
                           </div>
                         </div>

@@ -35,13 +35,14 @@ export async function POST(
 
   // Fetch top 50 videos from uploads playlist
   const chanRes = await fetch(
-    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics&id=${competitor.channel_id}&key=${apiKey}`
+    `https://www.googleapis.com/youtube/v3/channels?part=contentDetails,statistics,snippet&id=${competitor.channel_id}&key=${apiKey}`
   );
   const chanData = await chanRes.json();
   if (!chanData.items?.[0]) return NextResponse.json({ error: "Could not fetch channel data." }, { status: 500 });
 
   const uploadsPlaylistId = chanData.items[0].contentDetails?.relatedPlaylists?.uploads;
   const updatedStats = chanData.items[0].statistics;
+  const channelSnippet = chanData.items[0].snippet || {};
 
   if (!uploadsPlaylistId) return NextResponse.json({ error: "Could not find uploads playlist." }, { status: 500 });
 
@@ -54,7 +55,7 @@ export async function POST(
   if (!videoIds.length) return NextResponse.json({ error: "No videos found." }, { status: 500 });
 
   const videosRes = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds.join(",")}&key=${apiKey}`
+    `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds.join(",")}&key=${apiKey}`
   );
   const videosData = await videosRes.json();
   const videos = videosData.items || [];
@@ -64,6 +65,19 @@ export async function POST(
   // Calculate averages
   const viewCounts = videos.map((v: { statistics?: { viewCount?: string } }) => parseInt(v.statistics?.viewCount || "0")).filter((n: number) => n > 0);
   const avgViews = viewCounts.length ? Math.round(viewCounts.reduce((a: number, b: number) => a + b, 0) / viewCounts.length) : 0;
+
+  // Calculate average video duration
+  function parseDuration(iso: string): number {
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return 0;
+    return (parseInt(m[1] || "0") * 3600) + (parseInt(m[2] || "0") * 60) + parseInt(m[3] || "0");
+  }
+  const durations = videos
+    .map((v: { contentDetails?: { duration?: string } }) => parseDuration(v.contentDetails?.duration || "PT0S"))
+    .filter((d: number) => d > 0);
+  const avgDurationSeconds = durations.length
+    ? Math.round(durations.reduce((a: number, b: number) => a + b, 0) / durations.length)
+    : 0;
   const topVideos = [...videos]
     .sort((a: { statistics?: { viewCount?: string } }, b: { statistics?: { viewCount?: string } }) => parseInt(b.statistics?.viewCount || "0") - parseInt(a.statistics?.viewCount || "0"))
     .slice(0, 10)
@@ -96,10 +110,10 @@ Avg views per video: ${avgViews.toLocaleString()}
 Top 10 videos by views:
 ${titlesForAI}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON. For niche_consistency_score: score 0-100 based on how focused the channel is on one topic (100 = pure single niche, 50 = mixed topics, 20 = very scattered). Be accurate — most channels score between 40-90.
 {
   "title_patterns": ["Pattern 1", "Pattern 2", "Pattern 3", "Pattern 4", "Pattern 5"],
-  "niche_consistency_score": 85,
+  "niche_consistency_score": <integer 0-100 based on actual topic focus>,
   "content_strategy": "2-3 sentence summary of their content strategy",
   "upload_frequency": "Their likely upload frequency based on the data",
   "strengths": ["Strength 1", "Strength 2", "Strength 3"],
@@ -140,5 +154,11 @@ Return ONLY valid JSON:
 
   if (updateErr) return NextResponse.json({ error: updateErr.message }, { status: 500 });
 
-  return NextResponse.json({ competitor: updated, analysis: aiAnalysis, topVideos });
+  const channelMeta = {
+    joinedAt: channelSnippet.publishedAt || null,
+    country: channelSnippet.country || null,
+    avgDurationSeconds: avgDurationSeconds || null,
+  };
+
+  return NextResponse.json({ competitor: updated, analysis: { ...aiAnalysis, channelMeta }, topVideos });
 }

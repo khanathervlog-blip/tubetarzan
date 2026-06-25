@@ -114,5 +114,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
-  return NextResponse.json({ competitor: inserted });
+  return NextResponse.json({
+    competitor: inserted,
+    channelMeta: {
+      joinedAt: snippet?.publishedAt || null,
+      country: snippet?.country || null,
+      avgDurationSeconds: null,
+    },
+  });
 }
