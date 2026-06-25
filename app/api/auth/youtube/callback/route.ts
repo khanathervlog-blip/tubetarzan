@@ -3,16 +3,38 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 
+export interface StoredChannelData {
+  id: string;
+  name: string;
+  handle: string | null;
+  thumbnail: string | null;
+  subscriber_count: number | null;
+  access_token: string;
+  refresh_token: string | null;
+  token_expires_at: string;
+  connected_at: string;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
   const error = searchParams.get("error");
 
-  // Decode state to determine where to redirect after success
+  // Decode state — supports both old plain-string format and new JSON format
   const stateParam = searchParams.get("state");
   let returnTo = "onboarding";
+  let addChannel = false;
   try {
-    if (stateParam) returnTo = Buffer.from(stateParam, "base64").toString();
+    if (stateParam) {
+      const decoded = Buffer.from(stateParam, "base64").toString();
+      try {
+        const parsed = JSON.parse(decoded);
+        returnTo = parsed.returnTo || "onboarding";
+        addChannel = parsed.addChannel === true;
+      } catch {
+        returnTo = decoded; // legacy plain-string state
+      }
+    }
   } catch { /* ignore */ }
 
   const failRedirect = returnTo === "dashboard"
@@ -28,9 +50,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/login`
-      );
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/login`);
     }
 
     // Exchange code for tokens
@@ -62,9 +82,7 @@ export async function GET(request: NextRequest) {
     // Get channel info
     const channelRes = await fetch(
       "https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true",
-      {
-        headers: { Authorization: `Bearer ${tokens.access_token}` },
-      }
+      { headers: { Authorization: `Bearer ${tokens.access_token}` } }
     );
     const channelData = await channelRes.json() as {
       items?: Array<{
@@ -90,22 +108,88 @@ export async function GET(request: NextRequest) {
     ).toISOString();
 
     const serviceSupabase = await createServiceClient();
+
+    if (addChannel) {
+      // ADD mode — append to allowed_channel_data without replacing locked channel
+      const { data: profileRaw } = await serviceSupabase
+        .from("profiles")
+        .select("allowed_channel_ids, allowed_channel_data")
+        .eq("id", user.id)
+        .single();
+
+      const profile = profileRaw as Pick<Profile, "allowed_channel_ids" | "allowed_channel_data"> | null;
+      const existingIds: string[] = profile?.allowed_channel_ids || [];
+      const existingData: StoredChannelData[] = (profile?.allowed_channel_data as StoredChannelData[]) || [];
+
+      // Upsert — update entry if channel already exists, else append
+      const newEntry: StoredChannelData = {
+        id: channel.id,
+        name: channel.snippet.title,
+        handle: channel.snippet.customUrl || null,
+        thumbnail: channel.snippet.thumbnails?.default?.url || null,
+        subscriber_count: channel.statistics?.subscriberCount
+          ? parseInt(channel.statistics.subscriberCount) : null,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token || null,
+        token_expires_at: tokenExpiry,
+        connected_at: new Date().toISOString(),
+      };
+
+      const filteredData = existingData.filter(c => c.id !== channel.id);
+      const filteredIds = existingIds.filter(id => id !== channel.id);
+
+      await serviceSupabase.from("profiles").update({
+        allowed_channel_ids: [...filteredIds, channel.id],
+        allowed_channel_data: [...filteredData, newEntry],
+      } as Partial<Profile>).eq("id", user.id);
+
+      return NextResponse.redirect(
+        `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/channel?channel_added=true`
+      );
+    }
+
+    // DEFAULT mode — replace locked channel (original behaviour)
+    // Also store in allowed_channel_data so it shows in the multi-channel manager
+    const { data: profileRaw } = await serviceSupabase
+      .from("profiles")
+      .select("allowed_channel_ids, allowed_channel_data")
+      .eq("id", user.id)
+      .single();
+
+    const profile = profileRaw as Pick<Profile, "allowed_channel_ids" | "allowed_channel_data"> | null;
+    const existingData: StoredChannelData[] = (profile?.allowed_channel_data as StoredChannelData[]) || [];
+    const existingIds: string[] = profile?.allowed_channel_ids || [];
+
+    const newEntry: StoredChannelData = {
+      id: channel.id,
+      name: channel.snippet.title,
+      handle: channel.snippet.customUrl || null,
+      thumbnail: channel.snippet.thumbnails?.default?.url || null,
+      subscriber_count: channel.statistics?.subscriberCount
+        ? parseInt(channel.statistics.subscriberCount) : null,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token || null,
+      token_expires_at: tokenExpiry,
+      connected_at: new Date().toISOString(),
+    };
+
+    const filteredData = existingData.filter(c => c.id !== channel.id);
+    const filteredIds = existingIds.filter(id => id !== channel.id);
+
     await serviceSupabase.from("profiles").update({
       locked_channel_id: channel.id,
       locked_channel_handle: channel.snippet.customUrl || null,
       locked_channel_name: channel.snippet.title,
-      locked_channel_thumbnail:
-        channel.snippet.thumbnails?.default?.url || null,
+      locked_channel_thumbnail: channel.snippet.thumbnails?.default?.url || null,
       locked_channel_subscriber_count: channel.statistics?.subscriberCount
-        ? parseInt(channel.statistics.subscriberCount)
-        : null,
+        ? parseInt(channel.statistics.subscriberCount) : null,
       channel_connected_at: new Date().toISOString(),
-      channel_lock_until: new Date(
-        Date.now() + 90 * 24 * 60 * 60 * 1000
-      ).toISOString(),
+      channel_lock_until: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       youtube_access_token: tokens.access_token,
       youtube_refresh_token: tokens.refresh_token || null,
       youtube_token_expires_at: tokenExpiry,
+      allowed_channel_ids: [...filteredIds, channel.id],
+      allowed_channel_data: [...filteredData, newEntry],
     } as Partial<Profile>).eq("id", user.id);
 
     if (returnTo === "dashboard") {

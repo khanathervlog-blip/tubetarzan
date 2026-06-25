@@ -23,44 +23,60 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  let videoId = searchParams.get("videoId");
+  const videoId = searchParams.get("videoId");
 
   try {
     const accessToken = await getValidAccessToken(user.id);
 
-    // When no specific video is given, use the most recent videos from the channel cache
+    // When no specific video is given, try channel-wide first, then fall back to cached videos
     if (!videoId) {
-      const { data: cachedVideos } = await svc
-        .from("channel_video_cache")
-        .select("video_id, title")
-        .eq("user_id", user.id)
-        .eq("channel_id", profile.locked_channel_id)
-        .order("published_at", { ascending: false })
-        .limit(5);
-
-      if (!cachedVideos?.length) {
-        return NextResponse.json({ error: "No videos found in your channel cache. Sync your channel first from My Channel." }, { status: 404 });
-      }
-
-      // Collect comments from up to 5 recent videos and merge them
       const allComments: string[] = [];
-      for (const vid of cachedVideos) {
-        const res = await fetch(
-          `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${vid.video_id}&maxResults=25&order=relevance`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        );
-        if (!res.ok) continue;
-        const data = await res.json();
-        const comments = (data.items || []).map(
+
+      // Try channel-wide comments endpoint first (most efficient)
+      const chanRes = await fetch(
+        `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&allThreadsRelatedToChannelId=${profile.locked_channel_id}&maxResults=100&order=relevance`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (chanRes.ok) {
+        const chanData = await chanRes.json();
+        const chanComments = (chanData.items || []).map(
           (item: { snippet: { topLevelComment: { snippet: { textOriginal: string } } } }) =>
             item.snippet.topLevelComment.snippet.textOriginal
         );
-        allComments.push(...comments);
-        if (allComments.length >= 60) break;
+        allComments.push(...chanComments);
+      }
+
+      // If channel-wide failed or returned few results, supplement from cached videos
+      if (allComments.length < 20) {
+        const { data: cachedVideos } = await svc
+          .from("channel_video_cache")
+          .select("video_id, title")
+          .eq("user_id", user.id)
+          .eq("channel_id", profile.locked_channel_id)
+          .order("view_count", { ascending: false })
+          .limit(10);
+
+        for (const vid of cachedVideos || []) {
+          if (allComments.length >= 80) break;
+          const res = await fetch(
+            `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${vid.video_id}&maxResults=25&order=relevance`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          );
+          if (!res.ok) continue;
+          const data = await res.json();
+          const comments = (data.items || []).map(
+            (item: { snippet: { topLevelComment: { snippet: { textOriginal: string } } } }) =>
+              item.snippet.topLevelComment.snippet.textOriginal
+          );
+          allComments.push(...comments);
+        }
       }
 
       if (!allComments.length) {
-        return NextResponse.json({ comments: [], analysis: null, totalAnalyzed: 0 });
+        return NextResponse.json({
+          error: "No comments found. Comments may be disabled on your videos, or your videos haven't received comments yet. Try entering a specific Video ID that you know has comments.",
+          noComments: true,
+        }, { status: 404 });
       }
 
       const commentSample = allComments.slice(0, 60).join("\n---\n");

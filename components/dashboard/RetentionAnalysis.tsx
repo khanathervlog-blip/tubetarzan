@@ -117,12 +117,19 @@ export default function RetentionAnalysis({ channelVideos }: { channelVideos?: C
 
         {error && <div className="flex items-start gap-2 text-[#FF3B3B] text-sm"><AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />{error}</div>}
         {needsAnalyticsScope && (
-          <div className="bg-[#FFD200]/5 border border-[#FFD200]/20 rounded-btn p-4">
-            <p className="text-[#FFD200] text-sm font-semibold mb-1">YouTube Analytics permission needed</p>
-            <p className="text-[#555555] text-xs mb-3">Your channel was connected before Analytics scope was added. Reconnect to unlock retention curves, CTR data, and A/B testing insights.</p>
-            <a href="/api/auth/youtube/connect?return=dashboard" className="inline-flex items-center gap-1.5 bg-[#FFD200] text-[#080808] font-bold px-4 py-2 rounded-btn text-xs hover:bg-[#FFE033]">
-              Reconnect YouTube Channel →
-            </a>
+          <div className="bg-[#FFD200]/5 border border-[#FFD200]/20 rounded-btn p-4 space-y-2">
+            <p className="text-[#FFD200] text-sm font-semibold">YouTube Analytics — Pending Google Verification</p>
+            <p className="text-[#999999] text-xs leading-relaxed">
+              Retention curves require the <code className="bg-[#1E1E1E] px-1 py-0.5 rounded text-[#FFD200]">yt-analytics.readonly</code> OAuth scope. Google requires app verification before granting this to all users.
+            </p>
+            <div className="text-[#555555] text-xs space-y-1 pt-1">
+              <p className="font-medium text-[#999999]">Required steps (one-time, takes 1–4 weeks):</p>
+              <p>1. Google Cloud Console → APIs &amp; Services → OAuth consent screen</p>
+              <p>2. Add scope: <code className="bg-[#1E1E1E] px-1 rounded">yt-analytics.readonly</code></p>
+              <p>3. Click &ldquo;Publish App&rdquo; → Submit for verification</p>
+              <p>4. Once verified, all users can reconnect and access retention data</p>
+            </div>
+            <p className="text-[#555555] text-xs pt-1">In the meantime, view retention data directly in <a href="https://studio.youtube.com" target="_blank" rel="noopener noreferrer" className="text-[#FFD200] underline">YouTube Studio</a>.</p>
           </div>
         )}
       </div>

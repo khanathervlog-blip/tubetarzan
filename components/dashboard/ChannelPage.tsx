@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Video, RefreshCw, Loader2, Search, Wrench, ExternalLink, Zap } from "lucide-react";
 import VideoOptimisePanel from "./VideoOptimisePanel";
 import FixAllModal from "./FixAllModal";
+import AdminChannelManager from "./AdminChannelManager";
 import type { ChannelVideoCache } from "@/types/database";
 import type { Profile } from "@/types/database";
 
@@ -166,6 +167,11 @@ export default function ChannelPage({ profile, isAdmin = false }: Props) {
 
   return (
     <div className="max-w-4xl">
+      {/* Admin multi-channel manager */}
+      {isAdmin && (
+        <AdminChannelManager onSwitch={() => { loadVideos(); }} />
+      )}
+
       {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="flex items-center gap-4">

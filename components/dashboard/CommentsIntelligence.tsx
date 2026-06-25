@@ -27,7 +27,7 @@ export default function CommentsIntelligence() {
     try {
       const res = await fetch(`/api/channel/comments${params}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to analyze comments");
+      if (!res.ok) { setError(data.error || "Failed to analyze comments"); return; }
       if (!data.analysis) { setError("Not enough comments to analyze yet."); return; }
       setAnalysis(data.analysis);
       setTotalAnalyzed(data.totalAnalyzed || 0);

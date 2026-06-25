@@ -5,6 +5,10 @@ export async function GET(request: NextRequest) {
   // "return=dashboard" → after connect, go back to /dashboard/channel
   // default → go to onboarding step 3
   const returnTo = searchParams.get("return") || "onboarding";
+  // "addChannel=true" → append to allowed_channel_data instead of replacing locked_channel
+  const addChannel = searchParams.get("addChannel") === "true";
+
+  const state = Buffer.from(JSON.stringify({ returnTo, addChannel })).toString("base64");
 
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
@@ -13,11 +17,10 @@ export async function GET(request: NextRequest) {
     scope: [
       "https://www.googleapis.com/auth/youtube.readonly",
       "https://www.googleapis.com/auth/youtube.force-ssl",
-      "https://www.googleapis.com/auth/yt-analytics.readonly",
     ].join(" "),
     access_type: "offline",
     prompt: "consent",
-    state: Buffer.from(returnTo).toString("base64"),
+    state,
   });
 
   return NextResponse.redirect(

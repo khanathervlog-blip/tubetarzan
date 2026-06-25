@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DollarSign, ChevronUp, ChevronDown, Calculator, Loader2, Plus } from "lucide-react";
+
+const STORAGE_KEY = "tubetarzan_custom_niches";
 
 interface NicheData {
   niche: string;
@@ -58,11 +60,18 @@ export default function NicheIntelligencePage({
 }) {
   const baseData = dbNiches && dbNiches.length > 0 ? dbNiches : NICHE_DATA;
 
-  const [customNiches, setCustomNiches] = useState<NicheData[]>([]);
+  const [customNiches, setCustomNiches] = useState<NicheData[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; }
+  });
   const [customLookup, setCustomLookup] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [lookupInsight, setLookupInsight] = useState("");
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(customNiches)); } catch { /* storage full */ }
+  }, [customNiches]);
 
   const data = [...baseData, ...customNiches];
 

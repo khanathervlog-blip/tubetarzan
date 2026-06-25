@@ -44,7 +44,7 @@ export async function POST(
         },
         {
           role: "user",
-          content: `Optimise this YouTube video for maximum CTR and VPH.
+          content: `You are optimising this YouTube video for MAXIMUM CTR and VPH. Every suggestion must score 90+/100 on the criteria below.
 
 Current video data:
 Title: ${video.title}
@@ -53,13 +53,36 @@ Tags: ${(video.tags || []).join(", ") || "(none)"}
 Views: ${video.view_count?.toLocaleString()} | VPH: ${video.vph} | Outlier: ${video.outlier_ratio}x
 Duration: ${Math.round((video.duration_seconds || 0) / 60)} minutes
 
+TITLE SCORING RULES (must hit 90+/100):
+- Base score: 50
+- Length 40-65 chars: +15 (REQUIRED — do NOT go shorter or longer)
+- Contains a power word from this list: +15 (REQUIRED — pick from: best, worst, never, always, secret, truth, mistakes, actually, stop, most, only, nobody, hidden, real, honest, exposed, SHOCKING, INSANE, UNBELIEVABLE, BREATHTAKING)
+- Contains a number (year, count, ranking, distance): +8 (REQUIRED)
+- 1-2 ALL CAPS words (max): +7 (include this)
+- Question mark: +5 (include if natural)
+- PENALTY: do NOT start with "How to", "What is", "Learn", "Guide to", "Tips for"
+Target: 90-100/100. Craft accordingly.
+
+DESCRIPTION SCORING RULES (must hit 90+/100):
+- Write 800-1200 characters minimum
+- Open with a strong hook sentence
+- Include relevant keywords naturally
+- Add subscribe/follow call-to-action
+- Include relevant hashtags (#keyword) at the end
+- Use line breaks for readability
+
+TAGS SCORING RULES (must hit 90+/100):
+- Provide exactly 13-15 tags
+- Mix: 5 short single-word tags + 8 multi-word long-tail keyword tags
+- Each tag should be a real search term people type
+
 Return ONLY valid JSON (no markdown):
 {
-  "suggested_title": "string max 65 chars, power words, avoid 'How to' opener",
-  "suggested_description": "string 400-800 chars, hooks + keywords + CTA",
-  "suggested_tags": ["array of 12-15 tags"],
-  "suggested_thumbnail_text": "2-4 words ALL CAPS for thumbnail overlay",
-  "optimization_notes": "2-3 sentences explaining why these changes improve CTR and VPH"
+  "suggested_title": "EXACT title 40-65 chars with power word + number + 1-2 CAPS words",
+  "suggested_description": "800-1200 char description with hook + keywords + CTA + hashtags",
+  "suggested_tags": ["13-15 tags mixing single and multi-word"],
+  "suggested_thumbnail_text": "2-4 words ALL CAPS",
+  "optimization_notes": "2-3 sentences on why these specific choices maximize CTR and VPH"
 }`,
         },
       ],

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, Loader2, Zap, Check, AlertTriangle, ExternalLink } from "lucide-react";
-import { scoreTitle } from "@/lib/scoring";
+import { scoreTitle, scoreDescription, scoreTags } from "@/lib/scoring";
 import type { ChannelVideoCache } from "@/types/database";
 
 interface Props {
@@ -78,11 +78,23 @@ export default function VideoOptimisePanel({ video, channelId, onClose, onApplie
   }
 
   const suggestedScore = suggestions?.suggested_title ? scoreTitle(suggestions.suggested_title) : null;
+  const currentDescScore = scoreDescription(video.description || "");
+  const suggestedDescScore = suggestions?.suggested_description ? scoreDescription(suggestions.suggested_description) : null;
+  const currentTagsScore = scoreTags(video.tags || []);
+  const suggestedTagsScore = suggestions?.suggested_tags ? scoreTags(suggestions.suggested_tags) : null;
 
   function scoreColor(score: number) {
     if (score >= 80) return "text-[#22C55E]";
     if (score >= 60) return "text-[#FFB700]";
     return "text-[#FF3B3B]";
+  }
+
+  function ScoreChip({ score }: { score: number }) {
+    return (
+      <span className={`text-xs font-bold ${scoreColor(score)}`}>
+        {score}/100
+      </span>
+    );
   }
 
   return (
@@ -158,11 +170,17 @@ export default function VideoOptimisePanel({ video, channelId, onClose, onApplie
                 <h3 className="text-xs font-semibold text-[#999999] uppercase mb-3">Description Optimisation</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-[#555555] mb-1">Current ({video.description?.length || 0} chars)</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-[#555555]">Current ({video.description?.length || 0} chars)</p>
+                      <ScoreChip score={currentDescScore} />
+                    </div>
                     <p className="text-white text-xs leading-relaxed line-clamp-4">{video.description || "(no description)"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-[#555555] mb-1">AI Suggested</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-[#555555]">AI Suggested</p>
+                      {suggestedDescScore !== null && <ScoreChip score={suggestedDescScore} />}
+                    </div>
                     <p className="text-[#FFD200] text-xs leading-relaxed">
                       {showFullDesc ? suggestions.suggested_description : `${suggestions.suggested_description.slice(0, 200)}...`}
                     </p>
@@ -178,7 +196,10 @@ export default function VideoOptimisePanel({ video, channelId, onClose, onApplie
                 <h3 className="text-xs font-semibold text-[#999999] uppercase mb-3">Tags Optimisation</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-[#555555] mb-2">Current ({video.tags?.length || 0} tags)</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs text-[#555555]">Current ({video.tags?.length || 0} tags)</p>
+                      <ScoreChip score={currentTagsScore} />
+                    </div>
                     <div className="flex flex-wrap gap-1">
                       {(video.tags || []).map(t => (
                         <span key={t} className="text-xs bg-[#1E1E1E] text-[#999999] px-2 py-0.5 rounded-badge">{t}</span>
@@ -187,7 +208,10 @@ export default function VideoOptimisePanel({ video, channelId, onClose, onApplie
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-[#555555] mb-2">AI Suggested ({suggestions.suggested_tags.length} tags)</p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-xs text-[#555555]">AI Suggested ({suggestions.suggested_tags.length} tags)</p>
+                      {suggestedTagsScore !== null && <ScoreChip score={suggestedTagsScore} />}
+                    </div>
                     <div className="flex flex-wrap gap-1">
                       {suggestions.suggested_tags.map(t => (
                         <span key={t} className="text-xs bg-[#FFD200]/10 text-[#FFD200] px-2 py-0.5 rounded-badge">{t}</span>
