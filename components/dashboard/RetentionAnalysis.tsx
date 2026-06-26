@@ -39,7 +39,6 @@ export default function RetentionAnalysis({ channelVideos }: { channelVideos?: C
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState("");
-  const [needsAnalyticsScope, setNeedsAnalyticsScope] = useState(false);
   const [upgradeRequired, setUpgradeRequired] = useState(false);
 
   async function analyze(vid?: string) {
@@ -49,13 +48,11 @@ export default function RetentionAnalysis({ channelVideos }: { channelVideos?: C
     setLoading(true);
     setError("");
     setResult(null);
-    setNeedsAnalyticsScope(false);
 
     try {
       const res = await fetch(`/api/channel/retention?videoId=${id}`);
       const data = await res.json();
       if (data.upgradeRequired) { setUpgradeRequired(true); return; }
-      if (data.needsAnalyticsScope) { setNeedsAnalyticsScope(true); return; }
       if (!res.ok) { setError(data.error || "Analysis failed"); return; }
       setResult(data as AnalysisResult);
     } catch (err) {

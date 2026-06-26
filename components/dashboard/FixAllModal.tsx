@@ -36,7 +36,6 @@ function sleep(ms: number) {
 
 export default function FixAllModal({ videos, channelId, plan, onClose, onDone }: Props) {
   const planLimit = getPlanLimit(plan);
-  const isFree = plan === "free";
   const isUnlimited = planLimit === Infinity;
 
   // Only operate on videos not yet applied
@@ -161,7 +160,7 @@ export default function FixAllModal({ videos, channelId, plan, onClose, onDone }
           <>
             {videosToFix.length === 0 ? (
               <div className="bg-[#FF3B3B]/10 border border-[#FF3B3B]/30 rounded-btn px-4 py-3 mb-4">
-                <p className="text-[#FF3B3B] text-sm font-medium">You've reached your {getPlanName(plan)} plan limit ({planLimit} videos).</p>
+                <p className="text-[#FF3B3B] text-sm font-medium">You&apos;ve reached your {getPlanName(plan)} plan limit ({planLimit} videos).</p>
                 <p className="text-[#999999] text-xs mt-1">Upgrade your plan to fix more videos.</p>
               </div>
             ) : (
