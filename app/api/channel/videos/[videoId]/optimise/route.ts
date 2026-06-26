@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { verifyChannelOwnership } from "@/lib/channel-security";
+import { scoreTitle } from "@/lib/scoring";
 import OpenAI from "openai";
 import type { ChannelVideoCache } from "@/types/database";
 
@@ -32,57 +33,84 @@ export async function POST(
   const video = videoRaw as ChannelVideoCache | null;
   if (!video) return NextResponse.json({ error: "Video not found" }, { status: 404 });
 
+  const currentTitleScore = scoreTitle(video.title);
+  const durationMin = Math.round((video.duration_seconds || 0) / 60);
+
   try {
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      max_tokens: 1024,
+      max_tokens: 1500,
       messages: [
         {
           role: "system",
-          content: "You are a YouTube channel optimisation expert specialising in CTR, VPH, and SEO. Return only valid JSON.",
+          content: `You are a world-class YouTube viral strategist. You craft titles, descriptions, and tags that dominate CTR and search rankings. You NEVER copy or rephrase existing content — you always create something fresh, provocative, and completely different. Return only valid JSON.`,
         },
         {
           role: "user",
-          content: `You are optimising this YouTube video for MAXIMUM CTR and VPH. Every suggestion must score 90+/100 on the criteria below.
+          content: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CURRENT VIDEO (UNDERPERFORMING — score ${currentTitleScore}/100)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Title: "${video.title}"
+Description (excerpt): ${(video.description || "(none)").slice(0, 300)}
+Current tags: ${(video.tags || []).slice(0, 8).join(", ") || "(none)"}
+Views: ${(video.view_count || 0).toLocaleString()} | VPH: ${video.vph} | Outlier: ${video.outlier_ratio}x
+Duration: ${durationMin} minutes
 
-Current video data:
-Title: ${video.title}
-Description: ${video.description?.slice(0, 500) || "(none)"}
-Tags: ${(video.tags || []).join(", ") || "(none)"}
-Views: ${video.view_count?.toLocaleString()} | VPH: ${video.vph} | Outlier: ${video.outlier_ratio}x
-Duration: ${Math.round((video.duration_seconds || 0) / 60)} minutes
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  TITLE RULES — READ EVERY LINE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. DO NOT reuse, rephrase, or remix the current title. Ignore it completely.
+2. Pick ONE of these proven viral formulas and apply it to the topic:
+   • Formula A: [NUMBER] [POWER WORD] [Specific Outcome] + [(Bracket Hook)]
+   • Formula B: [SHOCKING CLAIM] — [What Viewer Gains In Specific Terms]
+   • Formula C: The [POWER WORD] [Topic] Nobody Talks About (#[year/number])
+3. Strip emojis from character count. Bare title must be 40–65 characters.
+4. Must include EXACTLY ONE power word (lower or UPPER case):
+   shocking, insane, unbelievable, secret, truth, brutal, mistakes,
+   never, hidden, exposed, only, nobody, ultimate, guaranteed, viral, epic
+5. Must include at least one number (year, count, steps, %, time).
+6. Include 1–2 ALL-CAPS words maximum (not the whole title).
+7. Do NOT start with: "How to", "What is", "Learn", "Guide to", "Tips for".
+8. Target score: 94–100/100. Score = 50 base + 15(length) + 15(power word) + 8(number) + 7(1-2 CAPS) + 5(question mark optional).
 
-TITLE SCORING RULES (must hit 90+/100):
-- Base score: 50
-- Length 40-65 chars: +15 (REQUIRED — do NOT go shorter or longer)
-- Contains a power word from this list: +15 (REQUIRED — pick from: best, worst, never, always, secret, truth, mistakes, actually, stop, most, only, nobody, hidden, real, honest, exposed, SHOCKING, INSANE, UNBELIEVABLE, BREATHTAKING)
-- Contains a number (year, count, ranking, distance): +8 (REQUIRED)
-- 1-2 ALL CAPS words (max): +7 (include this)
-- Question mark: +5 (include if natural)
-- PENALTY: do NOT start with "How to", "What is", "Learn", "Guide to", "Tips for"
-Target: 90-100/100. Craft accordingly.
+TITLE EXAMPLES — notice how different they are from a weak title:
+✗ WEAK: "PASS Your G Driving Test on the FIRST TRY!"
+✓ STRONG: "7 SHOCKING Mistakes That FAIL the G Driving Test"
+✗ WEAK: "Learn How to Cook Perfect Rice"
+✓ STRONG: "The ONLY Rice Secret Every Pakistani Chef Hides"
+✗ WEAK: "Breathtaking Aerial Views of Niagara Falls Experience"
+✓ STRONG: "INSANE 4K Niagara Falls Footage Nobody Has Filmed Before"
 
-DESCRIPTION SCORING RULES (must hit 90+/100):
-- Write 800-1200 characters minimum
-- Open with a strong hook sentence
-- Include relevant keywords naturally
-- Add subscribe/follow call-to-action
-- Include relevant hashtags (#keyword) at the end
-- Use line breaks for readability
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESCRIPTION RULES (must score 85+/100):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Minimum 900 characters
+• Line 1: powerful hook that creates urgency or curiosity
+• Include primary keywords naturally in first 200 chars
+• 3+ line breaks for readability
+• Include "Subscribe" or "Follow" CTA
+• End with 5–8 relevant hashtags (#keyword)
+• Include at least one link placeholder: [LINK]
+• Do NOT copy the existing description. Write fresh.
 
-TAGS SCORING RULES (must hit 90+/100):
-- Provide exactly 13-15 tags
-- Mix: 5 short single-word tags + 8 multi-word long-tail keyword tags
-- Each tag should be a real search term people type
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TAGS RULES (must score 94+/100):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Exactly 14 tags
+• 4 single-word tags (broad reach)
+• 10 multi-word long-tail tags (3–5 words each, specific search phrases)
+• Every tag must be a real phrase people type into YouTube search
+• Do NOT copy the current tags. Research fresh angles.
+• Score per tag: single word = ~50pts, 2-word = ~72pts, 3-word = ~88pts, 4+ word = ~95pts
 
-Return ONLY valid JSON (no markdown):
+Return ONLY valid JSON (no markdown, no explanation outside JSON):
 {
-  "suggested_title": "EXACT title 40-65 chars with power word + number + 1-2 CAPS words",
-  "suggested_description": "800-1200 char description with hook + keywords + CTA + hashtags",
-  "suggested_tags": ["13-15 tags mixing single and multi-word"],
-  "suggested_thumbnail_text": "2-4 words ALL CAPS",
-  "optimization_notes": "2-3 sentences on why these specific choices maximize CTR and VPH"
+  "suggested_title": "EXACT new title — 40-65 bare chars, power word, number, 1-2 CAPS",
+  "suggested_description": "900+ char fresh description with hook + keywords + CTA + hashtags",
+  "suggested_tags": ["14 tags: 4 single-word + 10 multi-word long-tail"],
+  "suggested_thumbnail_text": "3-5 ALL CAPS words for thumbnail overlay",
+  "optimization_notes": "2-3 sentences explaining the specific viral strategy used and why these choices will increase CTR"
 }`,
         },
       ],
