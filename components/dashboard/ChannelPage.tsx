@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Video, RefreshCw, Loader2, Search, Wrench, ExternalLink, Zap } from "lucide-react";
+import { Video, RefreshCw, Loader2, Search, Wrench, ExternalLink, Zap, Lock } from "lucide-react";
 import VideoOptimisePanel from "./VideoOptimisePanel";
 import FixAllModal from "./FixAllModal";
 import AdminChannelManager from "./AdminChannelManager";
@@ -23,6 +23,14 @@ interface ChannelInfo {
 interface Props {
   profile: Pick<Profile, "subscription_plan" | "locked_channel_id" | "locked_channel_name" | "locked_channel_handle" | "locked_channel_thumbnail" | "locked_channel_subscriber_count" | "channel_lock_until"> | null;
   isAdmin?: boolean;
+}
+
+function getPlanOptimiseLimit(plan: string | null, isAdmin: boolean): number {
+  if (isAdmin) return Infinity;
+  if (plan === "agency") return Infinity;
+  if (plan === "pro") return 50;
+  if (plan === "creator") return 25;
+  return 5; // free
 }
 
 function scoreLabel(score: number | null) {
@@ -109,6 +117,10 @@ export default function ChannelPage({ profile, isAdmin = false }: Props) {
     }
     return vids;
   }, [videos, search, filter, sortBy]);
+
+  const optimiseLimit = getPlanOptimiseLimit(profile?.subscription_plan || null, isAdmin);
+  const appliedCount = useMemo(() => videos.filter(v => v.applied_at !== null).length, [videos]);
+  const optimiseLimitReached = optimiseLimit !== Infinity && appliedCount >= optimiseLimit;
 
   const stats = useMemo(() => {
     if (!videos.length) return null;
@@ -287,11 +299,20 @@ export default function ChannelPage({ profile, isAdmin = false }: Props) {
                         className="text-[#555555] hover:text-white transition-colors p-1" title="Open in YouTube Studio">
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                      <button onClick={() => setOptimiseVideo(video)}
-                        className="flex items-center gap-1.5 bg-[#1E1E1E] hover:bg-[#2E2E2E] text-[#999999] hover:text-white text-xs px-3 py-1.5 rounded-btn transition-colors min-h-[32px]">
-                        <Wrench className="w-3 h-3" />
-                        Optimise →
-                      </button>
+                      {optimiseLimitReached && !video.applied_at ? (
+                        <a href="/pricing"
+                          className="flex items-center gap-1.5 bg-[#1E1E1E] hover:bg-[#2E2E2E] text-[#FFD200] text-xs px-3 py-1.5 rounded-btn transition-colors min-h-[32px]"
+                          title={`${profile?.subscription_plan || "free"} plan limit reached — upgrade to optimise more`}>
+                          <Lock className="w-3 h-3" />
+                          Upgrade
+                        </a>
+                      ) : (
+                        <button onClick={() => setOptimiseVideo(video)}
+                          className="flex items-center gap-1.5 bg-[#1E1E1E] hover:bg-[#2E2E2E] text-[#999999] hover:text-white text-xs px-3 py-1.5 rounded-btn transition-colors min-h-[32px]">
+                          <Wrench className="w-3 h-3" />
+                          Optimise →
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

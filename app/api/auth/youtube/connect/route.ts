@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
       "https://www.googleapis.com/auth/youtube.force-ssl",
     ].join(" "),
     access_type: "offline",
-    prompt: "consent",
+    // addChannel: show account picker so user can select a DIFFERENT Google account
+    prompt: addChannel ? "select_account consent" : "consent",
     state,
   });
 

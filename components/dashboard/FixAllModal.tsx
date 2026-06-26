@@ -14,17 +14,36 @@ interface Props {
 
 type Stage = "confirm" | "running" | "done" | "upgrade";
 
-const FREE_LIMIT = 5;
 const DELAY_MS = 400; // avoid OpenAI + YouTube rate limits
+
+function getPlanLimit(plan: string): number {
+  if (plan === "creator") return 25;
+  if (plan === "pro") return 50;
+  if (plan === "agency" || plan === "admin") return Infinity;
+  return 5; // free
+}
+
+function getPlanName(plan: string): string {
+  if (plan === "creator") return "Creator";
+  if (plan === "pro") return "Pro";
+  if (plan === "agency") return "Agency";
+  return "Free";
+}
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export default function FixAllModal({ videos, channelId, plan, onClose, onDone }: Props) {
+  const planLimit = getPlanLimit(plan);
   const isFree = plan === "free";
-  const limit = isFree ? FREE_LIMIT : videos.length;
-  const videosToFix = videos.slice(0, limit);
+  const isUnlimited = planLimit === Infinity;
+
+  // Only operate on videos not yet applied
+  const unfixedVideos = videos.filter(v => !v.applied_at);
+  const alreadyFixed = videos.length - unfixedVideos.length;
+  const remaining = isUnlimited ? unfixedVideos.length : Math.max(0, planLimit - alreadyFixed);
+  const videosToFix = unfixedVideos.slice(0, remaining);
 
   const [stage, setStage] = useState<Stage>("confirm");
   const [current, setCurrent] = useState(0);
@@ -104,7 +123,9 @@ export default function FixAllModal({ videos, channelId, plan, onClose, onDone }
     if (!cancelledRef.current) {
       setCurrent(videosToFix.length);
       onDone();
-      if (isFree && videos.length > FREE_LIMIT) {
+      // Show upgrade prompt if there are still unfixed videos beyond the plan limit
+      const stillRemaining = unfixedVideos.length - videosToFix.length;
+      if (!isUnlimited && stillRemaining > 0) {
         setStage("upgrade");
       } else {
         setStage("done");
@@ -138,15 +159,21 @@ export default function FixAllModal({ videos, channelId, plan, onClose, onDone }
         {/* Confirm */}
         {stage === "confirm" && (
           <>
-            <p className="text-[#999999] text-sm mb-3">
-              {isFree
-                ? `AI will generate and apply optimised titles, descriptions, and tags for your first ${Math.min(FREE_LIMIT, videos.length)} videos.`
-                : `AI will generate and apply optimised titles, descriptions, and tags for all ${videos.length} videos.`}
-            </p>
-            {isFree && videos.length > FREE_LIMIT && (
+            {videosToFix.length === 0 ? (
+              <div className="bg-[#FF3B3B]/10 border border-[#FF3B3B]/30 rounded-btn px-4 py-3 mb-4">
+                <p className="text-[#FF3B3B] text-sm font-medium">You've reached your {getPlanName(plan)} plan limit ({planLimit} videos).</p>
+                <p className="text-[#999999] text-xs mt-1">Upgrade your plan to fix more videos.</p>
+              </div>
+            ) : (
+              <p className="text-[#999999] text-sm mb-3">
+                AI will generate and apply optimised titles, descriptions, and tags for {videosToFix.length} video{videosToFix.length !== 1 ? "s" : ""}.
+                {alreadyFixed > 0 && ` (${alreadyFixed} already fixed)`}
+              </p>
+            )}
+            {!isUnlimited && unfixedVideos.length > remaining && videosToFix.length > 0 && (
               <div className="bg-[#FFD200]/10 border border-[#FFD200]/30 rounded-btn px-4 py-2.5 mb-4">
                 <p className="text-[#FFD200] text-xs font-medium">
-                  Free plan: fixes first {FREE_LIMIT} videos. Upgrade to Pro to fix all {videos.length}.
+                  {getPlanName(plan)} plan: {remaining} fix{remaining !== 1 ? "es" : ""} remaining of your {planLimit}-video limit. Upgrade to fix all {unfixedVideos.length} unfixed videos.
                 </p>
               </div>
             )}
@@ -156,12 +183,20 @@ export default function FixAllModal({ videos, channelId, plan, onClose, onDone }
             <div className="flex gap-3">
               <button onClick={onClose}
                 className="flex-1 bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white py-2.5 rounded-btn text-sm transition-colors">
-                Cancel
+                {videosToFix.length === 0 ? "Close" : "Cancel"}
               </button>
-              <button onClick={start}
-                className="flex-1 bg-[#FFD200] text-[#080808] font-bold py-2.5 rounded-btn text-sm hover:bg-[#FFE040] transition-colors">
-                Fix {isFree ? Math.min(FREE_LIMIT, videos.length) : "All"} Videos →
-              </button>
+              {videosToFix.length > 0 && (
+                <button onClick={start}
+                  className="flex-1 bg-[#FFD200] text-[#080808] font-bold py-2.5 rounded-btn text-sm hover:bg-[#FFE040] transition-colors">
+                  Fix {videosToFix.length} Video{videosToFix.length !== 1 ? "s" : ""} →
+                </button>
+              )}
+              {videosToFix.length === 0 && (
+                <a href="/pricing"
+                  className="flex-1 bg-[#FFD200] text-[#080808] font-bold py-2.5 rounded-btn text-sm hover:bg-[#FFE040] transition-colors flex items-center justify-center">
+                  Upgrade Plan →
+                </a>
+              )}
             </div>
           </>
         )}
@@ -225,10 +260,13 @@ export default function FixAllModal({ videos, channelId, plan, onClose, onDone }
           <>
             <div className="text-center mb-6">
               <CheckCircle2 className="w-12 h-12 text-[#22C55E] mx-auto mb-3" />
-              <p className="text-white font-semibold text-lg">{fixed} of {FREE_LIMIT} free fixes done!</p>
+              <p className="text-white font-semibold text-lg">{fixed} video{fixed !== 1 ? "s" : ""} fixed!</p>
               <p className="text-[#999999] text-sm mt-2">
-                You still have <span className="text-white font-medium">{videos.length - FREE_LIMIT} more videos</span> to fix.
-                Upgrade to Pro or Agency to fix all your videos in one click.
+                You&apos;ve reached your <span className="text-white font-medium">{getPlanName(plan)} plan limit ({planLimit} videos)</span>.{" "}
+                {unfixedVideos.length - videosToFix.length > 0 && (
+                  <span>You still have <span className="text-white font-medium">{unfixedVideos.length - videosToFix.length} more unfixed videos</span>. </span>
+                )}
+                Upgrade to fix all your videos in one click.
               </p>
             </div>
             <div className="flex gap-3">

@@ -12,7 +12,7 @@ interface Analysis {
   summary: string;
 }
 
-export default function CommentsIntelligence() {
+export default function CommentsIntelligence({ isAdmin = false }: { isAdmin?: boolean }) {
   const [videoId, setVideoId] = useState("");
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -49,7 +49,10 @@ export default function CommentsIntelligence() {
 
       <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6 mb-6 space-y-4">
         <div>
-          <label className="block text-xs text-[#999999] mb-1.5">Video ID (optional — leave blank to analyze all channel comments)</label>
+          <label className="block text-xs text-[#999999] mb-1.5">
+            Video ID (optional — leave blank to analyze your connected channel&apos;s comments)
+            {isAdmin && <span className="ml-2 text-[#FFD200]">Admin: enter any video ID to analyze comments from any channel</span>}
+          </label>
           <input type="text" value={videoId} onChange={e => setVideoId(e.target.value)}
             placeholder="e.g. dQw4w9WgXcQ — or leave blank for whole channel"
             className="w-full bg-[#080808] border border-[#1E1E1E] text-white placeholder-[#555555] rounded-btn px-4 py-3 text-sm focus:outline-none focus:border-[#FFD200]" />

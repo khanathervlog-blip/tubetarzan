@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Check, Trash2, RefreshCw, Loader2, Users } from "lucide-react";
+import { Plus, Check, Trash2, RefreshCw, Loader2, Users, Info } from "lucide-react";
 
 interface ChannelEntry {
   id: string;
@@ -186,6 +186,12 @@ export default function AdminChannelManager({ onSwitch }: Props) {
           })}
         </div>
       )}
+
+      {/* Google OAuth note for testing mode */}
+      <div className="mt-3 flex items-start gap-2 text-xs text-[#555555]">
+        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <p>If Google shows &ldquo;Access Blocked&rdquo; when adding a channel: go to <strong className="text-[#999999]">Google Cloud Console → OAuth consent screen → Test users</strong> and add the Google account you want to connect.</p>
+      </div>
 
       {toast && (
         <div className="mt-3 text-xs text-[#FFD200] bg-[#FFD200]/10 border border-[#FFD200]/20 rounded-btn px-3 py-2">

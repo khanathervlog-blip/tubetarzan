@@ -6,5 +6,8 @@ export default async function CommentsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  return <CommentsIntelligence />;
+
+  const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map(e => e.trim()).includes(user.email || "");
+
+  return <CommentsIntelligence isAdmin={isAdmin} />;
 }
