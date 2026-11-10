@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { generateEmbedding } from "@/lib/openai-support";
+import { clearSupportAnswerCache } from "@/lib/support-cache";
 
 function splitIntoChunks(text: string, chunkSize = 500, overlap = 50): string[] {
   const chunks: string[] = [];
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     results.push(data);
   }
 
+  clearSupportAnswerCache();
   return NextResponse.json({ success: true, chunksCreated: chunks.length });
 }
 
@@ -77,6 +79,7 @@ export async function DELETE(req: NextRequest) {
 
   const serviceClient = await createServiceClient();
   await serviceClient.from("support_knowledge").delete().eq("id", id);
+  clearSupportAnswerCache();
 
   return NextResponse.json({ success: true });
 }

@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
-function verifyCron(request: Request): boolean {
-  const vercelCron = request.headers.get("x-vercel-cron");
-  const auth = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  return !!(vercelCron || (secret && auth === `Bearer ${secret}`));
-}
 
 const CUTOFFS: Record<string, number> = {
   search_cache: 7 * 24 * 60 * 60 * 1000,      // 7 days
@@ -15,7 +10,7 @@ const CUTOFFS: Record<string, number> = {
 };
 
 export async function GET(request: Request) {
-  if (!verifyCron(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifyCronRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const svc = await createServiceClient();
   const results: Record<string, number> = {};
@@ -26,9 +21,8 @@ export async function GET(request: Request) {
     try {
       const { count } = await svc
         .from(table)
-        .select("id", { count: "exact", head: true })
+        .delete({ count: "exact" })
         .lt("created_at", cutoff);
-      await svc.from(table).delete().lt("created_at", cutoff);
       results[table] = count || 0;
     } catch {
       results[table] = -1;

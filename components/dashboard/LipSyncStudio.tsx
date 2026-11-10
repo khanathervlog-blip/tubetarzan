@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { startPoller } from "@/lib/poll";
 import { Upload, Video, Mic, Play, Download, Scissors, Loader2, CheckCircle2, AlertCircle, RefreshCw, Camera } from "lucide-react";
 
 interface Avatar {
@@ -44,11 +45,12 @@ export default function LipSyncStudio() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current?.();
+      pollRef.current = null;
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -150,22 +152,36 @@ export default function LipSyncStudio() {
     setJob({ id: jobId, status: "processing" });
     setPolling(true);
 
-    pollRef.current = setInterval(async () => {
-      const statusRes = await fetch(`/api/lipsync/status/${jobId}`);
-      const statusData: Job = await statusRes.json();
-      setJob(statusData);
+    pollRef.current?.();
+    pollRef.current = startPoller(
+      async () => {
+        const statusRes = await fetch(`/api/lipsync/status/${jobId}`);
+        if (!statusRes.ok) throw new Error("status check failed");
+        const statusData: Job = await statusRes.json();
+        setJob(statusData);
 
-      if (statusData.status === "complete") {
-        clearInterval(pollRef.current!);
-        setPolling(false);
-        setStep("result");
-      } else if (statusData.status === "failed") {
-        clearInterval(pollRef.current!);
-        setPolling(false);
-        setError(statusData.error || "Job failed.");
-        setStep("video");
+        if (statusData.status === "complete") {
+          setPolling(false);
+          setStep("result");
+          return true;
+        } else if (statusData.status === "failed") {
+          setPolling(false);
+          setError(statusData.error || "Job failed.");
+          setStep("video");
+          return true;
+        }
+        return false;
+      },
+      {
+        intervalMs: 10_000,
+        maxDurationMs: 30 * 60_000,
+        onTimeout: () => {
+          setPolling(false);
+          setError("Still processing — check back in a few minutes.");
+          setStep("video");
+        },
       }
-    }, 5000);
+    );
   };
 
   const splitVideo = async () => {
@@ -182,7 +198,8 @@ export default function LipSyncStudio() {
   };
 
   const reset = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current?.();
+    pollRef.current = null;
     setStep("video");
     setVideoUrl("");
     setVideoPreview("");

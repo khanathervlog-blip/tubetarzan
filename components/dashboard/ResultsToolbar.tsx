@@ -2,7 +2,8 @@
 
 import { RefreshCw } from "lucide-react";
 
-type SortKey = "viralScore" | "vph" | "outlierRatio" | "viewCount" | "newest" | "oldest";
+export type SortKey = "viralScore" | "vph" | "outlierRatio" | "viewCount" | "newest" | "oldest" | "engagement" | "recency";
+export type AgeFilter = "all" | "momentum" | "proven" | "evergreen";
 
 interface ResultsToolbarProps {
   totalFound: number;
@@ -10,6 +11,8 @@ interface ResultsToolbarProps {
   fromCache: boolean;
   sortBy: SortKey;
   onSortChange: (s: SortKey) => void;
+  ageFilter: AgeFilter;
+  onAgeFilterChange: (a: AgeFilter) => void;
   patternFilter: string;
   onPatternChange: (p: string) => void;
   subNicheFilter: string;
@@ -21,11 +24,20 @@ interface ResultsToolbarProps {
 
 const SORT_OPTIONS: { label: string; value: SortKey }[] = [
   { label: "Viral Score", value: "viralScore" },
+  { label: "Engagement", value: "engagement" },
+  { label: "Recency", value: "recency" },
   { label: "VPH", value: "vph" },
-  { label: "Outlier Ratio", value: "outlierRatio" },
+  { label: "Outlier", value: "outlierRatio" },
   { label: "Total Views", value: "viewCount" },
   { label: "Newest", value: "newest" },
   { label: "Oldest", value: "oldest" },
+];
+
+const AGE_FILTERS: { label: string; value: AgeFilter; description: string }[] = [
+  { label: "All Time", value: "all", description: "All videos" },
+  { label: "Momentum", value: "momentum", description: "0–14 days — trending now" },
+  { label: "Proven", value: "proven", description: "0–6 months — validated ideas" },
+  { label: "Evergreen", value: "evergreen", description: "6+ months — timeless content" },
 ];
 
 const PATTERNS = [
@@ -36,6 +48,7 @@ const PATTERNS = [
 
 export default function ResultsToolbar({
   totalFound, niche, fromCache, sortBy, onSortChange,
+  ageFilter, onAgeFilterChange,
   patternFilter, onPatternChange, subNicheFilter, onSubNicheChange,
   subNiches, onRefresh, isLoading,
 }: ResultsToolbarProps) {
@@ -72,6 +85,25 @@ export default function ResultsToolbar({
             }`}
           >
             {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Age filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[#555555] text-xs">Age:</span>
+        {AGE_FILTERS.map((af) => (
+          <button
+            key={af.value}
+            onClick={() => onAgeFilterChange(af.value)}
+            title={af.description}
+            className={`text-xs px-3 py-1.5 rounded-badge transition-colors min-h-[32px] ${
+              ageFilter === af.value
+                ? "bg-[#22C55E]/20 border border-[#22C55E]/40 text-[#22C55E] font-medium"
+                : "bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white"
+            }`}
+          >
+            {af.label}
           </button>
         ))}
       </div>

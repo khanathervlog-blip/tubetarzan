@@ -1,5 +1,5 @@
 import Navbar from "@/components/landing/Navbar";
-import type { AdminSetting } from "@/types/database";
+import { getLandingSettings } from "@/lib/site-settings";
 import Hero from "@/components/landing/Hero";
 import SocialProofTicker from "@/components/landing/SocialProofTicker";
 import Problem from "@/components/landing/Problem";
@@ -12,25 +12,14 @@ import FAQ from "@/components/landing/FAQ";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
 
-async function getAdminSettings() {
-  try {
-    const { createClient } = await import("@/lib/supabase/server");
-    const supabase = await createClient();
-    const { data } = await supabase
-      .from("admin_settings")
-      .select("key, value")
-      .in("key", [
-        "hero_video_url",
-        "hero_video_title",
-        "announcement_bar_text",
-        "announcement_bar_active",
-      ]);
+// Static page with incremental regeneration: rendered once, then refreshed in the background at most
+// every 5 minutes (or immediately when an admin saves the hero/announcement settings).
+// It must not read cookies() / headers(), otherwise Next.js renders it on the server for every visit.
+export const revalidate = 300;
 
-    const settings: Record<string, string> = {};
-    (data as AdminSetting[] | null)?.forEach((row) => {
-      settings[row.key] = row.value;
-    });
-    return settings;
+async function getAdminSettings(): Promise<Record<string, string>> {
+  try {
+    return await getLandingSettings();
   } catch {
     return {
       hero_video_url: "https://www.youtube.com/embed/dQw4w9WgXcQ",

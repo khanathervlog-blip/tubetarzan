@@ -2,6 +2,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * Auth-only session handling for /dashboard/* and /admin/* (no database calls).
+ *
+ * Uses getClaims(): when the project signs JWTs with asymmetric keys the token is verified locally
+ * against the cached JWKS (no network round trip); with the legacy shared secret it falls back to an
+ * Auth-server check, same as getUser() did. It also refreshes an expired access token and writes the new
+ * cookies. Pages and API routes still call getUser() for authoritative checks before touching user data.
+ */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -26,9 +34,9 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims as { sub?: string; email?: string } | undefined;
+  const user = claims?.sub ? { email: claims.email } : null;
 
   const pathname = request.nextUrl.pathname;
 

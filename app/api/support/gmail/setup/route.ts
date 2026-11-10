@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { setupGmailWatch } from "@/lib/support-gmail";
+import { verifyCronRequest } from "@/lib/cron-auth";
+
+// Vercel Cron always issues GET requests, so the weekly renewal in vercel.json needs a GET handler.
+export async function GET(req: NextRequest) {
+  if (!verifyCronRequest(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return renewWatch();
+}
 
 export async function POST(req: NextRequest) {
-  // Allow both admin UI calls and Vercel cron calls
+  // Allow both admin UI calls and cron calls
   const authHeader = req.headers.get("authorization");
-  const isCron = authHeader === `Bearer ${process.env.CRON_SECRET}`;
+  const isCron = !!process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`;
 
   if (!isCron) {
     const supabase = await createClient();
@@ -18,6 +25,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  return renewWatch();
+}
+
+async function renewWatch() {
   // Check required env vars before attempting
   const missing = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GOOGLE_PUBSUB_TOPIC"].filter(
     (k) => !process.env[k]

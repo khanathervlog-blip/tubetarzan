@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { startPoller } from "@/lib/poll";
 import { Film, Loader2, Search, Download, Sparkles, AlertCircle, Clock, ExternalLink } from "lucide-react";
 
 interface VideoResult {
@@ -40,7 +41,12 @@ export default function BrollStudio() {
   const [klingError, setKlingError] = useState("");
   const [klingUpgradeRequired, setKlingUpgradeRequired] = useState(false);
 
-  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingRef = useRef<(() => void) | null>(null);
+
+  // Stop any running status poll when the component unmounts
+  useEffect(() => {
+    return () => { pollingRef.current?.(); pollingRef.current = null; };
+  }, []);
 
   async function handleSearch() {
     if (!query.trim()) return;
@@ -75,7 +81,8 @@ export default function BrollStudio() {
     setKlingUpgradeRequired(false);
     setKlingTask(null);
 
-    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current?.();
+    pollingRef.current = null;
 
     try {
       const res = await fetch("/api/broll/kling", {
@@ -100,38 +107,35 @@ export default function BrollStudio() {
       setKlingTask(task);
 
       // Poll for completion every 10 seconds
-      pollingRef.current = setInterval(async () => {
-        try {
+      // Pauses while the tab is hidden, backs off on errors, stops on unmount / after 5 minutes
+      pollingRef.current = startPoller(
+        async () => {
           const pollRes = await fetch(`/api/broll/kling?taskId=${data.taskId}`);
+          if (!pollRes.ok) throw new Error("status check failed"); // transient: keep polling with backoff
           const pollData = await pollRes.json();
 
           if (pollData.status === "succeed" && pollData.videoUrl) {
             setKlingTask((prev) => prev ? { ...prev, status: "succeed", videoUrl: pollData.videoUrl } : prev);
-            if (pollingRef.current) clearInterval(pollingRef.current);
             setKlingLoading(false);
+            return true;
           } else if (pollData.status === "failed") {
             setKlingTask((prev) => prev ? { ...prev, status: "failed" } : prev);
             setKlingError("Generation failed. Try a different prompt.");
-            if (pollingRef.current) clearInterval(pollingRef.current);
             setKlingLoading(false);
-          } else {
-            setKlingTask((prev) => prev ? { ...prev, status: "processing" } : prev);
+            return true;
           }
-        } catch {
-          // Keep polling even on transient errors
-        }
-      }, 10000);
-
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        if (pollingRef.current) {
-          clearInterval(pollingRef.current);
-          setKlingLoading(false);
-          if (klingTask?.status === "processing" || klingTask?.status === "submitted") {
+          setKlingTask((prev) => prev ? { ...prev, status: "processing" } : prev);
+          return false;
+        },
+        {
+          intervalMs: 10_000,
+          maxDurationMs: 300_000,
+          onTimeout: () => {
+            setKlingLoading(false);
             setKlingError("Generation timed out. Kling AI may be busy — try again.");
-          }
+          },
         }
-      }, 300000);
+      );
     } catch (err) {
       setKlingError(err instanceof Error ? err.message : "Kling AI request failed");
       setKlingLoading(false);

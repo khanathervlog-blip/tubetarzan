@@ -2,7 +2,8 @@ import { searchVideos, getVideoDetails, getChannelDetails } from "./youtube";
 import {
   calculateVPH,
   calculateOutlierRatio,
-  calculateViralScore,
+  calculateCompleteViralScore,
+  getViralTier,
 } from "./scoring";
 import { parseISO8601Duration } from "./utils";
 import { createServiceClient } from "./supabase/server";
@@ -102,7 +103,7 @@ export async function runViralPipeline(
 
   const { data: cached } = await supabase
     .from("search_cache")
-    .select("*")
+    .select("raw_results, cached_at")
     .eq("niche_key", cacheKey)
     .single();
 
@@ -166,8 +167,19 @@ export async function runViralPipeline(
     }
   }
 
-  // Step 4: Filter + Score
-  const enriched: EnrichedVideo[] = [];
+  // Step 4: Filter + initial enrichment (without topic clustering)
+  interface PreEnriched {
+    video: YouTubeVideoDetail;
+    channel: YouTubeChannelDetail;
+    hoursAlive: number;
+    vph: number;
+    outlierRatio: number;
+    channelAvgViews: number;
+    pattern: string;
+    detectedSubNiche: string;
+  }
+  const preEnriched: PreEnriched[] = [];
+
   for (const video of videoDetailsMap.values()) {
     const channel = channelDetailsMap.get(video.channelId);
     if (!channel) continue;
@@ -176,13 +188,37 @@ export async function runViralPipeline(
     if (!shouldIncludeVideo(video, channel, hoursAlive)) continue;
 
     const vph = calculateVPH(video.viewCount, video.publishedAt);
-    const outlierRatio = calculateOutlierRatio(
-      video.viewCount,
-      channel.totalViews,
-      channel.videoCount
-    );
-    const viralScore = calculateViralScore(vph, outlierRatio);
+    const outlierRatio = calculateOutlierRatio(video.viewCount, channel.totalViews, channel.videoCount);
     const channelAvgViews = channel.totalViews / Math.max(channel.videoCount, 1);
+    const pattern = detectPattern(video.title);
+    const detectedSubNiche = extractSubNiche(video.title);
+    preEnriched.push({ video, channel, hoursAlive, vph, outlierRatio, channelAvgViews, pattern, detectedSubNiche });
+  }
+
+  // Topic clustering: count how many videos per sub-niche have outlier >= 5x
+  const topicCounts = new Map<string, number>();
+  for (const { outlierRatio, detectedSubNiche } of preEnriched) {
+    if (outlierRatio >= 5 && detectedSubNiche) {
+      topicCounts.set(detectedSubNiche, (topicCounts.get(detectedSubNiche) || 0) + 1);
+    }
+  }
+
+  // Step 5: Full viral score with topic clustering
+  const enriched: EnrichedVideo[] = [];
+  for (const { video, channel, hoursAlive, vph, outlierRatio, channelAvgViews, pattern, detectedSubNiche } of preEnriched) {
+    const sameTopicViralCount = detectedSubNiche ? (topicCounts.get(detectedSubNiche) || 0) : 0;
+
+    const breakdown = calculateCompleteViralScore({
+      viewCount: video.viewCount,
+      likeCount: video.likeCount,
+      commentCount: video.commentCount,
+      channelTotalViews: channel.totalViews,
+      channelVideoCount: channel.videoCount,
+      hoursAlive,
+      title: video.title,
+      subscriberCount: channel.subscriberCount,
+      sameTopicViralCount,
+    });
 
     enriched.push({
       videoId: video.videoId,
@@ -196,18 +232,21 @@ export async function runViralPipeline(
       thumbnailUrl: video.thumbnailUrl,
       viewCount: video.viewCount,
       likeCount: video.likeCount,
+      commentCount: video.commentCount,
       tags: video.tags,
       vph,
       outlierRatio,
-      viralScore,
+      viralScore: breakdown.total,
+      viralTier: getViralTier(breakdown.total),
+      viralScoreBreakdown: breakdown,
       hoursAlive,
-      detectedSubNiche: extractSubNiche(video.title),
+      detectedSubNiche,
       videoUrl: `https://www.youtube.com/watch?v=${video.videoId}`,
-      pattern: detectPattern(video.title),
+      pattern,
     });
   }
 
-  // Step 5: Sort by viralScore descending
+  // Sort by viralScore descending
   enriched.sort((a, b) => b.viralScore - a.viralScore);
 
   // Step 6: Save to cache

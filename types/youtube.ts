@@ -30,6 +30,32 @@ export interface YouTubeChannelDetail {
   thumbnailUrl: string;
 }
 
+export interface ViralScoreBreakdown {
+  // Raw values
+  vph: number;
+  outlierRatio: number;
+  daysOld: number;
+  engagementVelocity: number;
+  likeToViewRatio: number;
+  commentToViewRatio: number;
+  subscriberToViewRatio: number;
+  sameTopicViralCount: number;
+  // Weighted scores (max shown in breakdown bars)
+  vphScore: number;          // 0-25
+  outlierScore: number;      // 0-20
+  recencyScore: number;      // 0-15
+  engagementScore: number;   // 0-15
+  satisfactionScore: number; // 0-10
+  momentumScore: number;     // 0-5
+  topicScore: number;        // 0-5
+  titlePatternScore: number; // 0-5
+  // Composite
+  total: number;             // 0-100
+  viralTier: "legendary" | "viral" | "strong" | "moderate" | "weak";
+  primarySignal: string;
+  recommendation: string;
+}
+
 export interface EnrichedVideo {
   videoId: string;
   title: string;
@@ -42,10 +68,13 @@ export interface EnrichedVideo {
   thumbnailUrl: string;
   viewCount: number;
   likeCount: number;
+  commentCount: number;
   tags: string[];
   vph: number;
   outlierRatio: number;
   viralScore: number;
+  viralTier: string;
+  viralScoreBreakdown?: ViralScoreBreakdown;
   hoursAlive: number;
   detectedSubNiche: string;
   videoUrl: string;

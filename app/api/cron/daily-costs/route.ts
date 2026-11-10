@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
-function verifyCron(request: Request): boolean {
-  const vercelCron = request.headers.get("x-vercel-cron");
-  const auth = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  return !!(vercelCron || (secret && auth === `Bearer ${secret}`));
-}
 
 const COST_PER_SCAN_USD = 0.004;
 
 export async function GET(request: Request) {
-  if (!verifyCron(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifyCronRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const svc = await createServiceClient();
   const today = new Date().toISOString().split("T")[0];

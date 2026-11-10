@@ -1,33 +1,29 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
-function verifyCron(request: Request): boolean {
-  const vercelCron = request.headers.get("x-vercel-cron");
-  const auth = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-  return !!(vercelCron || (secret && auth === `Bearer ${secret}`));
-}
 
 const PLAN_PRICE: Record<string, number> = { creator: 9, pro: 25, agency: 99 };
 
 export async function GET(request: Request) {
-  if (!verifyCron(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!verifyCronRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const svc = await createServiceClient();
   const now = new Date();
   // monthly_revenue uses a date column — store as first of the month
   const monthDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-  const { data: subscribers } = await svc
-    .from("profiles")
-    .select("subscription_plan, subscription_status")
-    .eq("subscription_status", "active")
-    .in("subscription_plan", ["creator", "pro", "agency"]);
-
   const counts: Record<string, number> = { creator: 0, pro: 0, agency: 0 };
-  for (const s of (subscribers || []) as { subscription_plan: string }[]) {
-    counts[s.subscription_plan] = (counts[s.subscription_plan] || 0) + 1;
-  }
+  await Promise.all(
+    Object.keys(counts).map(async (plan) => {
+      const { count } = await svc
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("subscription_status", "active")
+        .eq("subscription_plan", plan);
+      counts[plan] = count || 0;
+    })
+  );
 
   const grossRevenue = Object.entries(counts).reduce(
     (sum, [plan, n]) => sum + n * (PLAN_PRICE[plan] || 0),

@@ -5,6 +5,13 @@ import { isAdminEmail } from "@/lib/email-guard";
 
 // Gmail Pub/Sub push webhook — fires when new email arrives
 export async function POST(req: NextRequest) {
+  // Optional shared-secret check. Set PUBSUB_VERIFY_TOKEN in Vercel and append ?token=<value> to the
+  // Pub/Sub push endpoint URL; requests without it are rejected before any Gmail API work happens.
+  const expectedToken = process.env.PUBSUB_VERIFY_TOKEN;
+  if (expectedToken && req.nextUrl.searchParams.get("token") !== expectedToken) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 

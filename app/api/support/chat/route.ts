@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runSupportPipeline } from "@/lib/support-pipeline";
+import { allowChatRequest } from "@/lib/support-cache";
 
 export async function POST(req: NextRequest) {
   try {
+    // Public endpoint: every message costs an embedding + an LLM call, so cap how fast one client can send.
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!allowChatRequest(ip)) {
+      return NextResponse.json({ error: "Too many messages. Please wait a few minutes." }, { status: 429 });
+    }
+
     const { message, conversationId, visitorId, pageUrl } = await req.json();
 
     if (!message || message.trim().length < 2) {
       return NextResponse.json({ error: "Message too short" }, { status: 400 });
+    }
+    if (message.length > 4000) {
+      return NextResponse.json({ error: "Message too long" }, { status: 400 });
     }
 
     const supabase = await createClient();

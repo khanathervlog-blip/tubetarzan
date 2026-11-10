@@ -10,8 +10,7 @@ import GeneratePanel from "./GeneratePanel";
 import IdeaTracker from "./IdeaTracker";
 import type { EnrichedVideo, SearchResponse, GeneratedIdea } from "@/types/youtube";
 import type { Profile } from "@/types/database";
-
-type SortKey = "viralScore" | "vph" | "outlierRatio" | "viewCount" | "newest" | "oldest";
+import type { SortKey, AgeFilter } from "./ResultsToolbar";
 
 interface StoredSearch {
   id: number;
@@ -22,6 +21,7 @@ interface StoredSearch {
 
 interface SearchFilter {
   sortBy: SortKey;
+  ageFilter: AgeFilter;
   patternFilter: string;
   subNicheFilter: string;
 }
@@ -76,7 +76,7 @@ export default function IntelligenceBoardPage({
   // Load search history from database on mount
   useEffect(() => {
     const cap = isAdmin ? 10 : 3;
-    fetch("/api/searches/history")
+    fetch(`/api/searches/history?limit=${cap}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.searches) {
@@ -196,7 +196,7 @@ export default function IntelligenceBoardPage({
 
   function getFilter(id: number): SearchFilter {
     return (
-      filters[id] || { sortBy: "viralScore", patternFilter: "All", subNicheFilter: "All" }
+      filters[id] || { sortBy: "viralScore", ageFilter: "all", patternFilter: "All", subNicheFilter: "All" }
     );
   }
 
@@ -208,9 +208,20 @@ export default function IntelligenceBoardPage({
     if (!search.results?.videos) return [];
     const f = getFilter(search.id);
     let vids = [...search.results.videos];
+
+    // Age filter
+    if (f.ageFilter === "momentum") {
+      vids = vids.filter((v) => v.hoursAlive <= 14 * 24);
+    } else if (f.ageFilter === "proven") {
+      vids = vids.filter((v) => v.hoursAlive <= 180 * 24);
+    } else if (f.ageFilter === "evergreen") {
+      vids = vids.filter((v) => v.hoursAlive > 180 * 24);
+    }
+
     if (f.patternFilter !== "All") vids = vids.filter((v) => v.pattern === f.patternFilter);
     if (f.subNicheFilter !== "All")
       vids = vids.filter((v) => v.detectedSubNiche === f.subNicheFilter);
+
     switch (f.sortBy) {
       case "vph":
         vids.sort((a, b) => b.vph - a.vph);
@@ -222,16 +233,21 @@ export default function IntelligenceBoardPage({
         vids.sort((a, b) => b.viewCount - a.viewCount);
         break;
       case "newest":
-        vids.sort(
-          (a, b) =>
-            new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-        );
+        vids.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
         break;
       case "oldest":
-        vids.sort(
-          (a, b) =>
-            new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime()
-        );
+        vids.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime());
+        break;
+      case "engagement": {
+        vids.sort((a, b) => {
+          const eA = (a.likeCount + (a.commentCount || 0) * 5) / Math.max(a.viewCount, 1);
+          const eB = (b.likeCount + (b.commentCount || 0) * 5) / Math.max(b.viewCount, 1);
+          return eB - eA;
+        });
+        break;
+      }
+      case "recency":
+        vids.sort((a, b) => a.hoursAlive - b.hoursAlive);
         break;
       default:
         vids.sort((a, b) => b.viralScore - a.viralScore);
@@ -425,6 +441,8 @@ export default function IntelligenceBoardPage({
                   fromCache={search.results.fromCache}
                   sortBy={f.sortBy}
                   onSortChange={(v) => updateFilter(search.id, { sortBy: v })}
+                  ageFilter={f.ageFilter}
+                  onAgeFilterChange={(v) => updateFilter(search.id, { ageFilter: v })}
                   patternFilter={f.patternFilter}
                   onPatternChange={(v) => updateFilter(search.id, { patternFilter: v })}
                   subNicheFilter={f.subNicheFilter}

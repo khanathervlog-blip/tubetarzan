@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { startPoller } from "@/lib/poll";
 import { Upload, Subtitles, Play, Download, Loader2, CheckCircle2, AlertCircle, Languages, Palette, Sliders, Flame, RefreshCw } from "lucide-react";
 
 interface Word {
@@ -54,10 +55,10 @@ export default function CaptionsStudio() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    return () => { pollRef.current?.(); pollRef.current = null; };
   }, []);
 
   useEffect(() => {
@@ -174,24 +175,35 @@ export default function CaptionsStudio() {
     }
 
     // Poll for completion
-    pollRef.current = setInterval(async () => {
-      const statusRes = await fetch(`/api/captions/status/${jobId}`);
-      const data = await statusRes.json();
-      if (data.status === "complete" && data.output_url) {
-        clearInterval(pollRef.current!);
-        setBurnStatus("complete");
-        setOutputUrl(data.output_url);
-        setBurning(false);
-      } else if (data.status === "failed") {
-        clearInterval(pollRef.current!);
-        setBurnStatus("failed");
-        setBurning(false);
+    pollRef.current?.();
+    pollRef.current = startPoller(
+      async () => {
+        const statusRes = await fetch(`/api/captions/status/${jobId}`);
+        if (!statusRes.ok) throw new Error("status check failed");
+        const data = await statusRes.json();
+        if (data.status === "complete" && data.output_url) {
+          setBurnStatus("complete");
+          setOutputUrl(data.output_url);
+          setBurning(false);
+          return true;
+        } else if (data.status === "failed") {
+          setBurnStatus("failed");
+          setBurning(false);
+          return true;
+        }
+        return false;
+      },
+      {
+        intervalMs: 10_000,
+        maxDurationMs: 15 * 60_000,
+        onTimeout: () => { setBurnStatus("failed"); setBurning(false); },
       }
-    }, 5000);
+    );
   };
 
   const reset = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current?.();
+    pollRef.current = null;
     setStep("upload");
     setVideoUrl("");
     setVideoPreview("");

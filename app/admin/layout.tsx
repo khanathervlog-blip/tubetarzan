@@ -19,6 +19,7 @@ import {
   Gauge,
   UserCog,
   Globe,
+  PlayCircle,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -33,6 +34,7 @@ const NAV_SECTIONS = [
   {
     label: "Users & Content",
     items: [
+      { href: "/admin/one-go", label: "⚡ One Go", icon: PlayCircle },
       { href: "/admin/users", label: "Users", icon: UserCog },
       { href: "/admin/leads", label: "Leads", icon: Users },
       { href: "/admin/video", label: "Video & Content", icon: Video },

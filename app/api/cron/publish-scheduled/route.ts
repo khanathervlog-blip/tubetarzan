@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
+import { verifyCronRequest } from "@/lib/cron-auth";
 
-// Runs every minute via Vercel cron
+// Runs once a day via Vercel cron (see vercel.json)
 // Publishes scheduled posts whose scheduled_for time has passed
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  // Allow Vercel cron header or explicit CRON_SECRET
-  const vercelCronHeader = request.headers.get("x-vercel-cron");
-  if (!vercelCronHeader && cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

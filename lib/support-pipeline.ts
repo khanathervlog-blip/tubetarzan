@@ -3,6 +3,12 @@ import { searchKnowledgeBase, calculateConfidence, buildKnowledgeContext } from 
 import { generateSupportReply } from "./openai-support";
 import { createServiceClient } from "./supabase/server";
 import { isVerifiedRecipient } from "./email-guard";
+import {
+  getCachedAnswer,
+  setCachedAnswer,
+  getCachedThreshold,
+  setCachedThreshold,
+} from "./support-cache";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -33,12 +39,17 @@ export async function runSupportPipeline(
   const supabase = await createServiceClient();
 
   // Get threshold from settings (default 80)
-  const { data: settingRow } = await supabase
-    .from("support_settings")
-    .select("value")
-    .eq("key", "confidence_threshold")
-    .single();
-  const threshold = parseInt((settingRow as any)?.value || "80");
+  // (cached for 5 minutes - it only changes when an admin edits the setting)
+  let threshold = getCachedThreshold();
+  if (threshold === null) {
+    const { data: settingRow } = await supabase
+      .from("support_settings")
+      .select("value")
+      .eq("key", "confidence_threshold")
+      .single();
+    threshold = parseInt((settingRow as any)?.value || "80");
+    setCachedThreshold(threshold);
+  }
 
   // Step 1: Get or create conversation
   let conversationId = input.conversationId;
@@ -89,21 +100,40 @@ export async function runSupportPipeline(
 
   // Step 2: Build conversation history for GPT
   const existingMessages: any[] = conversation?.messages || [];
-  const conversationHistory: any[] = existingMessages.map((m: any) => ({
+  // Only the most recent turns go to the model - older ones add tokens (and CPU) but little value
+  const conversationHistory: any[] = existingMessages.slice(-12).map((m: any) => ({
     role: m.role === "assistant" ? "assistant" : "user",
     content: m.content,
   }));
 
-  // Step 3: RAG search
-  const knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.40);
-  const knowledgeContext = buildKnowledgeContext(knowledgeChunks);
+  // First chat message of a conversation: its answer depends only on the question + public knowledge base,
+  // so identical questions can share one answer (see support-cache.ts for why this is private-data safe).
+  const cacheable = input.channel === "chat" && existingMessages.length === 0;
+  const cached = cacheable ? getCachedAnswer(input.message) : null;
 
-  // Step 4: Generate reply
-  const { reply, needsEscalation } = await generateSupportReply(
-    input.message,
-    conversationHistory,
-    knowledgeContext
-  );
+  let knowledgeChunks: Awaited<ReturnType<typeof searchKnowledgeBase>>;
+  let reply: string;
+  let needsEscalation: boolean;
+
+  if (cached) {
+    knowledgeChunks = cached.chunks;
+    reply = cached.reply;
+    needsEscalation = cached.needsEscalation;
+  } else {
+    // Step 3: RAG search (pgvector inside Postgres - nothing to rebuild or load here)
+    knowledgeChunks = await searchKnowledgeBase(input.message, 5, 0.40);
+    const knowledgeContext = buildKnowledgeContext(knowledgeChunks);
+
+    // Step 4: Generate reply
+    const generated = await generateSupportReply(
+      input.message,
+      conversationHistory,
+      knowledgeContext
+    );
+    reply = generated.reply;
+    needsEscalation = generated.needsEscalation;
+    if (cacheable) setCachedAnswer(input.message, { reply, needsEscalation, chunks: knowledgeChunks });
+  }
 
   // Step 5: Confidence score
   const confidence = calculateConfidence(knowledgeChunks, needsEscalation);

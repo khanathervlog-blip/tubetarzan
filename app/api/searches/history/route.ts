@@ -3,19 +3,23 @@ import { createClient } from "@/lib/supabase/server";
 
 const MAX_HISTORY = 10;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Each row carries a full results blob, so only load as many as the client will actually show.
+  const requested = parseInt(request.nextUrl.searchParams.get("limit") || "", 10);
+  const limit = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), MAX_HISTORY) : MAX_HISTORY;
+
   const { data, error } = await supabase
     .from("user_search_history")
     .select("id, niche, results, searched_at")
     .eq("user_id", user.id)
     .order("searched_at", { ascending: false })
-    .limit(MAX_HISTORY);
+    .limit(limit);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ searches: data ?? [] });

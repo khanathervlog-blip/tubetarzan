@@ -86,13 +86,23 @@ Outline: "${outline || ""}"
 Style: ${style}
 Target duration: ${effectiveDuration}
 
-The script must:
-- Start with the exact hook provided (or create a powerful one if not given)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RETENTION RULES — MANDATORY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. HOOK (0:00–0:30): Open with the hook — tease the biggest payoff FIRST, never explain, create burning curiosity.
+2. RE-HOOKS every 2–3 minutes: Each section must open with a mini-hook that re-engages dropped viewers. Example: "But here's where it gets crazy…" / "What I'm about to show you changes everything…" / "Most people skip this — don't."
+3. HOOK ANSWERED before 30% mark: The opening question/tease MUST be partially answered by 25-30% through the video to prevent early drop-off.
+4. SESSION CONTINUATION CTA at 50% mark: Mid-roll reminder — "If you're enjoying this, smash Like right now — it helps more than you know."
+5. MAX 8–10 minutes effective length: Even for longer scripts, keep energy tight. Every 90 seconds must have a new piece of information, a story beat, or a visual change. Cut filler ruthlessly.
+6. CLOSING CTA: End with ONE clear action — subscribe OR watch next video (provide [NEXT VIDEO LINK]). Never ask for both at once.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SCRIPT RULES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Flow naturally — write as if SPEAKING, not writing
 - Include [B-ROLL: description] cues where relevant
 - Include [PAUSE] for dramatic effect where needed
-- Include natural transitions between sections
-- End with a strong CTA (subscribe, comment, watch next)
+- Include [RE-HOOK] markers at 2–3 min intervals
 - Use contractions and casual language
 
 Return ONLY this JSON structure:
@@ -103,7 +113,8 @@ Return ONLY this JSON structure:
       "timestamp": "0:00 - 0:30",
       "script": "Full word-for-word script for this section...",
       "broll_cues": ["B-ROLL: show X", "B-ROLL: cut to Y"],
-      "word_count": 120
+      "word_count": 120,
+      "has_rehook": false
     }
   ],
   "total_word_count": 1500,

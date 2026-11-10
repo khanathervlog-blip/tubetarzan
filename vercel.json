@@ -31,6 +31,10 @@
     {
       "path": "/api/support/gmail/setup",
       "schedule": "0 9 * * 1"
+    },
+    {
+      "path": "/api/admin/one-go/scheduled",
+      "schedule": "0 3 * * 5"
     }
   ]
 }

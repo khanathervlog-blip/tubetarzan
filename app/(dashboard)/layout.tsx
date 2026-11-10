@@ -29,6 +29,7 @@ import {
   VideoIcon,
 } from "lucide-react";
 import type { Profile } from "@/types/database";
+import { getAnnouncementBar } from "@/lib/site-settings";
 import AnnouncementBarWrapper from "@/components/shared/AnnouncementBarWrapper";
 
 const NAV_SECTIONS = [
@@ -111,21 +112,8 @@ export default async function DashboardLayout({
     "full_name" | "email" | "subscription_plan" | "subscription_status"
   > | null;
 
-  // Load announcement bar setting
-  const { data: announcementRow } = await supabase
-    .from("admin_settings")
-    .select("value")
-    .eq("key", "announcement_bar")
-    .maybeSingle();
-  const announcementData = announcementRow?.value
-    ? (() => {
-        try {
-          return JSON.parse(announcementRow.value);
-        } catch {
-          return null;
-        }
-      })()
-    : null;
+  // Announcement bar is the same for everyone, so it comes from the shared 5-minute cache
+  const announcementData = await getAnnouncementBar().catch(() => null);
 
   return (
     <div className="min-h-screen bg-[#080808] flex flex-col">

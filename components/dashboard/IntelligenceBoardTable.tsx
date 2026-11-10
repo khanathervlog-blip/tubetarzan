@@ -4,7 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { Tag, Lightbulb, Copy, Check, ExternalLink, Lock } from "lucide-react";
 import { formatNumber, formatAge, formatDuration } from "@/lib/utils";
-import type { EnrichedVideo } from "@/types/youtube";
+import type { EnrichedVideo, ViralScoreBreakdown } from "@/types/youtube";
 
 interface IntelligenceBoardTableProps {
   videos: EnrichedVideo[];
@@ -14,6 +14,27 @@ interface IntelligenceBoardTableProps {
   onGenerate: (video: EnrichedVideo) => void;
   onTagsSaved: (tags: string[]) => void;
   showToast: (msg: string) => void;
+}
+
+const TIER_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  legendary: { bg: "bg-[#FFD200]/20", text: "text-[#FFD200]", label: "LEGENDARY" },
+  viral:     { bg: "bg-[#FF3B3B]/20", text: "text-[#FF3B3B]", label: "VIRAL" },
+  strong:    { bg: "bg-[#22C55E]/15", text: "text-[#22C55E]", label: "STRONG" },
+  moderate:  { bg: "bg-[#FFB700]/15", text: "text-[#FFB700]", label: "MODERATE" },
+  weak:      { bg: "bg-[#1E1E1E]",    text: "text-[#555555]", label: "WEAK" },
+};
+
+function ViralTierBadge({ score, tier }: { score: number; tier?: string }) {
+  const t = tier || "weak";
+  const s = TIER_STYLES[t] || TIER_STYLES.weak;
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <span className={`font-mono-stats text-sm font-bold ${s.text}`}>{score}</span>
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-badge ${s.bg} ${s.text}`}>
+        {s.label}
+      </span>
+    </div>
+  );
 }
 
 function VPHBadge({ vph }: { vph: number }) {
@@ -56,6 +77,44 @@ function OutlierBadge({ ratio }: { ratio: number }) {
   );
 }
 
+function ScoreBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = Math.min(100, (value / max) * 100);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[#555555] text-xs w-28 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 bg-[#1E1E1E] rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-[#999999] text-xs font-mono-stats w-6 text-right shrink-0">{value}</span>
+      <span className="text-[#333333] text-xs shrink-0">/{max}</span>
+    </div>
+  );
+}
+
+function SignalBreakdown({ bd, durationSeconds }: { bd: ViralScoreBreakdown; durationSeconds: number }) {
+  return (
+    <div className="mb-4 p-4 bg-[#060606] rounded-btn border border-[#1E1E1E]/60">
+      <p className="text-[#555555] text-xs uppercase tracking-wider mb-3 font-medium">
+        8-Signal Viral Score Breakdown
+      </p>
+      <div className="space-y-2">
+        <ScoreBar label="VPH Velocity"      value={bd.vphScore}          max={25} color="bg-[#FF3B3B]" />
+        <ScoreBar label="Outlier Ratio"     value={bd.outlierScore}      max={20} color="bg-[#FF3B3B]" />
+        <ScoreBar label="Recency"           value={bd.recencyScore}      max={15} color="bg-[#22C55E]" />
+        <ScoreBar label="Engagement Vel."   value={bd.engagementScore}   max={15} color="bg-[#22C55E]" />
+        <ScoreBar label="Satisfaction"      value={bd.satisfactionScore} max={10} color="bg-[#FFD200]" />
+        <ScoreBar label="Channel Momentum"  value={bd.momentumScore}     max={5}  color="bg-[#FFD200]" />
+        <ScoreBar label="Topic Trending"    value={bd.topicScore}        max={5}  color="bg-[#FFB700]" />
+        <ScoreBar label="Title Pattern"     value={bd.titlePatternScore} max={5}  color="bg-[#FFB700]" />
+      </div>
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E1E1E]">
+        <span className="text-[#555555] text-xs">Duration: {formatDuration(durationSeconds)}</span>
+        <span className="text-white text-sm font-bold">Total: {bd.total}/100</span>
+      </div>
+    </div>
+  );
+}
+
 function blendSuggestedTags(sourceTags: string[], niche: string): string[] {
   const year = new Date().getFullYear().toString();
   const nicheWord = niche.toLowerCase().split(" ")[0];
@@ -66,14 +125,14 @@ function blendSuggestedTags(sourceTags: string[], niche: string): string[] {
   return Array.from(new Set([...sourceTags, ...withYear, ...withNiche])).slice(0, 20);
 }
 
-interface TagExpansionProps {
+interface ExpandedRowProps {
   video: EnrichedVideo;
   niche: string;
   showToast: (msg: string) => void;
   onTagsSaved: (tags: string[]) => void;
 }
 
-function TagExpansion({ video, niche, showToast, onTagsSaved }: TagExpansionProps) {
+function ExpandedRow({ video, niche, showToast, onTagsSaved }: ExpandedRowProps) {
   const [copied, setCopied] = useState<"all" | "suggested" | null>(null);
   const suggested = blendSuggestedTags(video.tags, niche);
 
@@ -102,87 +161,85 @@ function TagExpansion({ video, niche, showToast, onTagsSaved }: TagExpansionProp
     }
   }
 
-  if (video.tags.length === 0) {
-    return (
-      <tr>
-        <td colSpan={9} className="px-4 py-3 bg-[#0A0A0A] border-b border-[#1E1E1E]">
-          <p className="text-[#555555] text-xs">No tags found for this video.</p>
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <tr>
-      <td colSpan={9} className="px-4 py-4 bg-[#0A0A0A] border-b border-[#1E1E1E]">
-        <div className="space-y-4">
-          <div>
-            <p className="text-[#555555] text-xs uppercase tracking-wider mb-2 font-medium">
-              Tags from this video ({video.tags.length})
-            </p>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {video.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="bg-[#1E1E1E] text-[#999999] text-xs px-2 py-1 rounded-badge"
+      <td colSpan={10} className="px-4 py-4 bg-[#0A0A0A] border-b border-[#1E1E1E]">
+        {video.viralScoreBreakdown && (
+          <SignalBreakdown bd={video.viralScoreBreakdown} durationSeconds={video.durationSeconds} />
+        )}
+
+        {video.tags.length === 0 ? (
+          <p className="text-[#555555] text-xs">No tags found for this video.</p>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <p className="text-[#555555] text-xs uppercase tracking-wider mb-2 font-medium">
+                Tags from this video ({video.tags.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {video.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-[#1E1E1E] text-[#999999] text-xs px-2 py-1 rounded-badge"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => copy(video.tags, "all")}
+                  className="flex items-center gap-1.5 text-xs bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white px-3 py-1.5 rounded-badge transition-colors"
                 >
-                  {tag}
-                </span>
-              ))}
+                  {copied === "all" ? (
+                    <Check className="w-3 h-3 text-[#22C55E]" />
+                  ) : (
+                    <Copy className="w-3 h-3" />
+                  )}
+                  Copy All Tags
+                </button>
+                <button
+                  onClick={saveTagBank}
+                  className="flex items-center gap-1.5 text-xs bg-[#111111] border border-[#1E1E1E] text-[#FFD200] hover:bg-[#FFD200]/10 px-3 py-1.5 rounded-badge transition-colors"
+                >
+                  + Add to Tag Bank
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            <div>
+              <p className="text-[#555555] text-xs uppercase tracking-wider mb-2 font-medium">
+                Suggested tags for your video (AI blend)
+              </p>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {suggested.slice(0, 12).map((tag) => (
+                  <span
+                    key={tag}
+                    className="bg-[#FF3B3B]/10 border border-[#FF3B3B]/20 text-[#FF3B3B] text-xs px-2 py-1 rounded-badge"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {suggested.length > 12 && (
+                  <span className="text-[#555555] text-xs py-1">
+                    + {suggested.length - 12} more
+                  </span>
+                )}
+              </div>
               <button
-                onClick={() => copy(video.tags, "all")}
+                onClick={() => copy(suggested, "suggested")}
                 className="flex items-center gap-1.5 text-xs bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white px-3 py-1.5 rounded-badge transition-colors"
               >
-                {copied === "all" ? (
+                {copied === "suggested" ? (
                   <Check className="w-3 h-3 text-[#22C55E]" />
                 ) : (
                   <Copy className="w-3 h-3" />
                 )}
-                Copy All Tags
-              </button>
-              <button
-                onClick={saveTagBank}
-                className="flex items-center gap-1.5 text-xs bg-[#111111] border border-[#1E1E1E] text-[#FFD200] hover:bg-[#FFD200]/10 px-3 py-1.5 rounded-badge transition-colors"
-              >
-                + Add to Tag Bank
+                Copy Suggested Tags
               </button>
             </div>
           </div>
-
-          <div>
-            <p className="text-[#555555] text-xs uppercase tracking-wider mb-2 font-medium">
-              Suggested tags for your video (AI blend)
-            </p>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {suggested.slice(0, 12).map((tag) => (
-                <span
-                  key={tag}
-                  className="bg-[#FF3B3B]/10 border border-[#FF3B3B]/20 text-[#FF3B3B] text-xs px-2 py-1 rounded-badge"
-                >
-                  {tag}
-                </span>
-              ))}
-              {suggested.length > 12 && (
-                <span className="text-[#555555] text-xs py-1">
-                  + {suggested.length - 12} more
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => copy(suggested, "suggested")}
-              className="flex items-center gap-1.5 text-xs bg-[#111111] border border-[#1E1E1E] text-[#999999] hover:text-white px-3 py-1.5 rounded-badge transition-colors"
-            >
-              {copied === "suggested" ? (
-                <Check className="w-3 h-3 text-[#22C55E]" />
-              ) : (
-                <Copy className="w-3 h-3" />
-              )}
-              Copy Suggested Tags
-            </button>
-          </div>
-        </div>
+        )}
       </td>
     </tr>
   );
@@ -208,128 +265,144 @@ export default function IntelligenceBoardTable({
   return (
     <div className="bg-[#111111] border border-[#1E1E1E] rounded-card overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px]">
+        <table className="w-full text-sm min-w-[1000px]">
           <thead>
             <tr className="border-b border-[#1E1E1E] text-[#555555] text-xs">
               <th className="text-left px-4 py-3 font-medium w-12"></th>
               <th className="text-left px-4 py-3 font-medium">Title / Channel</th>
+              <th className="text-right px-4 py-3 font-medium">Score</th>
               <th className="text-right px-4 py-3 font-medium">Views</th>
               <th className="text-right px-4 py-3 font-medium">VPH</th>
               <th className="text-right px-4 py-3 font-medium">Outlier</th>
-              <th className="text-right px-4 py-3 font-medium">Dur.</th>
+              <th className="text-right px-4 py-3 font-medium">Engage%</th>
               <th className="text-right px-4 py-3 font-medium">Age</th>
               <th className="text-right px-4 py-3 font-medium">Tags</th>
               <th className="text-right px-4 py-3 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {visibleVideos.map((video) => (
-              <>
-                <tr
-                  key={video.videoId}
-                  className="border-b border-[#0F0F0F] hover:bg-[#0D0D0D] transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <div className="relative w-12 h-9 rounded overflow-hidden bg-[#1E1E1E] flex-shrink-0">
-                      {video.thumbnailUrl && (
-                        <Image
-                          src={video.thumbnailUrl}
-                          alt=""
-                          fill
-                          sizes="48px"
-                          className="object-cover"
-                          unoptimized
-                        />
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 max-w-[280px]">
-                    <a
-                      href={video.videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-white hover:text-[#FF3B3B] font-medium truncate block transition-colors"
-                    >
-                      {video.title}
-                    </a>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[#555555] text-xs truncate">
-                        @{video.channelName}
-                      </span>
-                      <span className="text-[#333333] text-xs">·</span>
-                      <span className="text-[#555555] text-xs">
-                        {formatNumber(video.channelSubscriberCount)} subs
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono-stats text-xs text-white">
-                    {formatNumber(video.viewCount)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <VPHBadge vph={video.vph} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <OutlierBadge ratio={video.outlierRatio} />
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono-stats text-xs text-[#555555]">
-                    {formatDuration(video.durationSeconds)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono-stats text-xs text-[#555555]">
-                    {formatAge(video.publishedAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {video.tags.length > 0 ? (
-                      <button
-                        onClick={() =>
-                          setExpandedId(
-                            expandedId === video.videoId ? null : video.videoId
-                          )
-                        }
-                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded-badge transition-colors ml-auto ${
-                          expandedId === video.videoId
-                            ? "bg-[#FFD200]/20 text-[#FFD200]"
-                            : "bg-[#1E1E1E] text-[#555555] hover:text-white"
-                        }`}
-                      >
-                        <Tag className="w-3 h-3" />
-                        {video.tags.length}
-                      </button>
-                    ) : (
-                      <span className="text-[#333333] text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center gap-1.5 justify-end">
+            {visibleVideos.map((video) => {
+              const engagePct = video.viewCount > 0
+                ? ((video.likeCount / video.viewCount) * 100).toFixed(1)
+                : "0.0";
+              return (
+                <>
+                  <tr
+                    key={video.videoId}
+                    className="border-b border-[#0F0F0F] hover:bg-[#0D0D0D] transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="relative w-12 h-9 rounded overflow-hidden bg-[#1E1E1E] flex-shrink-0">
+                        {video.thumbnailUrl && (
+                          <Image
+                            src={video.thumbnailUrl}
+                            alt=""
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                            unoptimized
+                          />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 max-w-[260px]">
                       <a
                         href={video.videoUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-badge bg-[#1E1E1E] text-[#555555] hover:text-white transition-colors"
-                        title="Open on YouTube"
+                        className="text-white hover:text-[#FF3B3B] font-medium truncate block transition-colors"
                       >
-                        <ExternalLink className="w-3 h-3" />
+                        {video.title}
                       </a>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[#555555] text-xs truncate">
+                          @{video.channelName}
+                        </span>
+                        <span className="text-[#333333] text-xs">·</span>
+                        <span className="text-[#555555] text-xs">
+                          {formatNumber(video.channelSubscriberCount)} subs
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => onGenerate(video)}
-                        className="flex items-center gap-1 text-xs bg-[#FF3B3B]/10 border border-[#FF3B3B]/20 text-[#FF3B3B] px-2 py-1.5 rounded-badge hover:bg-[#FF3B3B]/20 transition-colors"
+                        onClick={() =>
+                          setExpandedId(expandedId === video.videoId ? null : video.videoId)
+                        }
+                        title="Click to see signal breakdown"
                       >
-                        <Lightbulb className="w-3 h-3" />
-                        Generate
+                        <ViralTierBadge score={video.viralScore} tier={video.viralTier} />
                       </button>
-                    </div>
-                  </td>
-                </tr>
-                {expandedId === video.videoId && (
-                  <TagExpansion
-                    key={`tags-${video.videoId}`}
-                    video={video}
-                    niche={niche}
-                    showToast={showToast}
-                    onTagsSaved={onTagsSaved}
-                  />
-                )}
-              </>
-            ))}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono-stats text-xs text-white">
+                      {formatNumber(video.viewCount)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <VPHBadge vph={video.vph} />
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <OutlierBadge ratio={video.outlierRatio} />
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono-stats text-xs text-[#555555]">
+                      {engagePct}%
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono-stats text-xs text-[#555555]">
+                      {formatAge(video.publishedAt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {video.tags.length > 0 ? (
+                        <button
+                          onClick={() =>
+                            setExpandedId(
+                              expandedId === video.videoId ? null : video.videoId
+                            )
+                          }
+                          className={`flex items-center gap-1 text-xs px-2 py-1 rounded-badge transition-colors ml-auto ${
+                            expandedId === video.videoId
+                              ? "bg-[#FFD200]/20 text-[#FFD200]"
+                              : "bg-[#1E1E1E] text-[#555555] hover:text-white"
+                          }`}
+                        >
+                          <Tag className="w-3 h-3" />
+                          {video.tags.length}
+                        </button>
+                      ) : (
+                        <span className="text-[#333333] text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <a
+                          href={video.videoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-badge bg-[#1E1E1E] text-[#555555] hover:text-white transition-colors"
+                          title="Open on YouTube"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button
+                          onClick={() => onGenerate(video)}
+                          className="flex items-center gap-1 text-xs bg-[#FF3B3B]/10 border border-[#FF3B3B]/20 text-[#FF3B3B] px-2 py-1.5 rounded-badge hover:bg-[#FF3B3B]/20 transition-colors"
+                        >
+                          <Lightbulb className="w-3 h-3" />
+                          Generate
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedId === video.videoId && (
+                    <ExpandedRow
+                      key={`exp-${video.videoId}`}
+                      video={video}
+                      niche={niche}
+                      showToast={showToast}
+                      onTagsSaved={onTagsSaved}
+                    />
+                  )}
+                </>
+              );
+            })}
           </tbody>
         </table>
       </div>

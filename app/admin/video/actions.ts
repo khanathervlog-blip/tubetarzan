@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath, revalidateTag } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
+import { SITE_SETTINGS_TAG } from "@/lib/site-settings";
 
 export async function saveVideoSettings(settings: {
   hero_video_url: string;
@@ -37,6 +39,10 @@ export async function saveVideoSettings(settings: {
 
     if (error) return { error: error.message };
   }
+
+  // Make the statically generated landing page and the dashboard banner pick up the change right away
+  revalidateTag(SITE_SETTINGS_TAG);
+  revalidatePath("/");
 
   return { error: null };
 }
