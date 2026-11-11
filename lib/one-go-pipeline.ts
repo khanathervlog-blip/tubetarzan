@@ -359,8 +359,8 @@ async function step6_lipSync(
 ): Promise<string | null> {
   await updateJob(jobId, { current_step: "Step 6/9: Running lip sync (GPU)...", progress_percent: 60 });
 
-  if (!process.env.HF_LIPSYNC_SPACE_URL || !process.env.HF_TOKEN) {
-    console.warn("[OneGo] Lip sync skipped — HF_LIPSYNC_SPACE_URL or HF_TOKEN not set");
+  if (!process.env.HF_LIPSYNC_SPACE_URL || !(process.env.HF_TOKENS || process.env.HF_TOKEN)) {
+    console.warn("[OneGo] Lip sync skipped — HF_LIPSYNC_SPACE_URL or HF_TOKENS not set");
     await updateJob(jobId, { progress_percent: 68 });
     return null;
   }

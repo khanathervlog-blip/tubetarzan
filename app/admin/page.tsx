@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { DollarSign, Users, TrendingUp, UserX } from "lucide-react";
 import type { Profile } from "@/types/database";
+import { PLAN_MONTHLY_PRICE } from "@/lib/plans";
 
 async function getAdminStats() {
   const supabase = await createClient();
@@ -18,11 +19,7 @@ async function getAdminStats() {
   const trials = plans.filter((p) => p.subscription_status === "trialing");
   const free = plans.filter((p) => !p.subscription_plan || p.subscription_plan === "free");
 
-  const PLAN_PRICES: Record<string, number> = {
-    creator: 9,
-    pro: 25,
-    agency: 99,
-  };
+  const PLAN_PRICES = PLAN_MONTHLY_PRICE;
 
   const mrr = active.reduce((sum, p) => {
     return sum + (PLAN_PRICES[p.subscription_plan || ""] || 0);

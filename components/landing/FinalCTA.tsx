@@ -17,8 +17,8 @@ export default function FinalCTA() {
         </h2>
 
         <p className="text-[#999999] text-xl mb-10 max-w-xl mx-auto leading-relaxed">
-          Join 1,200+ YouTube automation creators who have replaced their
-          manual research with TubeTarzan.
+          Replace hours of manual research with a 60-second scan. Free to
+          start, no card needed.
         </p>
 
         <Link

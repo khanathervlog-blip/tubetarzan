@@ -2,49 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
-
-const FAQS = [
-  {
-    question: "Do I need a VidIQ subscription?",
-    answer:
-      "No. TubeTarzan uses YouTube's official free API — the same data source VidIQ uses — at a fraction of the price.",
-  },
-  {
-    question: "What is the YouTube API key I need to provide?",
-    answer:
-      "On Free and Creator plans, you bring your own free Google API key. It takes 5 minutes to get from Google Cloud Console, and we show you exactly how inside the app with screenshots. Your key = your 10,000 free units per day. Pro and Agency users never touch this — we handle it completely.",
-  },
-  {
-    question: "Can I use one subscription for multiple channels?",
-    answer:
-      "Each subscription locks to one YouTube channel. Agency plan supports up to 5 channels. This keeps prices low for everyone.",
-  },
-  {
-    question: "How is VPH calculated?",
-    answer:
-      "Views Per Hour = Total Views ÷ Hours Since Upload. Fetched live from YouTube every scan. Shows you what is gaining momentum RIGHT NOW.",
-  },
-  {
-    question: "What is the 14x Outlier Ratio?",
-    answer:
-      "A video's views divided by the channel's average views per video. 14x means that video got 14 times more views than normal for that channel — a strong viral signal.",
-  },
-  {
-    question: "Can I change my locked YouTube channel?",
-    answer:
-      "Yes, once every 90 days. Contact support and we process it within 24 hours.",
-  },
-  {
-    question: "How does the one-click apply work?",
-    answer:
-      "We use YouTube's official write API with your permission. You always review AI suggestions before anything changes on your channel — nothing is automatic.",
-  },
-  {
-    question: "Is there a free trial?",
-    answer:
-      "Yes. Free plan is free forever with no card. All paid plans have a 7-day free trial. No credit card required to start.",
-  },
-];
+import { FAQS } from "@/lib/landing-content";
 
 export default function FAQ() {
   const [open, setOpen] = useState<number | null>(null);

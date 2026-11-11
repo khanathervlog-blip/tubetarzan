@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PLAN_PRICES } from "@/lib/plans";
 import {
   Check,
   Loader2,
@@ -29,7 +30,7 @@ const PLANS = [
   {
     id: "creator",
     name: "Creator",
-    price: "$9",
+    price: `$${PLAN_PRICES.creator.monthly}`,
     period: "/month",
     features: ["3 scans/day", "All 200+ results", "Bring own API key"],
     cta: "Start Trial",
@@ -39,7 +40,7 @@ const PLANS = [
   {
     id: "pro",
     name: "Pro",
-    price: "$25",
+    price: `$${PLAN_PRICES.pro.monthly}`,
     period: "/month",
     features: ["Unlimited scans", "All 200+ results", "We handle API key"],
     cta: "Start Trial",
@@ -48,7 +49,7 @@ const PLANS = [
   {
     id: "agency",
     name: "Agency",
-    price: "$99",
+    price: `$${PLAN_PRICES.agency.monthly}`,
     period: "/month",
     features: ["5 channels", "Unlimited scans", "Priority support"],
     cta: "Start Trial",

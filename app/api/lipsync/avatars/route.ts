@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { canUseLipSync } from "@/lib/lipsync-access";
 
 const PEXELS_QUERIES = ["person talking camera", "woman speaking studio", "man speaking professional"];
 
@@ -7,6 +8,11 @@ export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const svc = await createServiceClient();
+  const { data: profile } = await svc.from("profiles").select("subscription_plan").eq("id", user.id).single();
+  if (!canUseLipSync(user.email, profile?.subscription_plan as string | undefined)) {
+    return NextResponse.json({ error: "admin_only" }, { status: 403 });
+  }
 
   const apiKey = process.env.PEXELS_API_KEY;
   if (!apiKey) return NextResponse.json({ avatars: [] });

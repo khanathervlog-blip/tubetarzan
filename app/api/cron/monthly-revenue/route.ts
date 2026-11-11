@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { verifyCronRequest } from "@/lib/cron-auth";
+import { PLAN_MONTHLY_PRICE } from "@/lib/plans";
 
 
-const PLAN_PRICE: Record<string, number> = { creator: 9, pro: 25, agency: 99 };
+const PLAN_PRICE: Record<string, number> = PLAN_MONTHLY_PRICE;
 
 export async function GET(request: Request) {
   if (!verifyCronRequest(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

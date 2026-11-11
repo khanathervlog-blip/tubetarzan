@@ -20,6 +20,9 @@ import {
   UserCog,
   Globe,
   PlayCircle,
+  Eye,
+  Clapperboard,
+  Search,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -27,6 +30,7 @@ const NAV_SECTIONS = [
     label: "Overview",
     items: [
       { href: "/admin", label: "Dashboard", icon: BarChart3 },
+      { href: "/admin/visitors", label: "Visitors", icon: Eye },
       { href: "/admin/revenue", label: "Revenue", icon: DollarSign },
       { href: "/admin/subscriptions", label: "Subscriptions", icon: CreditCard },
     ],
@@ -56,6 +60,8 @@ const NAV_SECTIONS = [
     label: "Platform",
     items: [
       { href: "/admin/api-keys", label: "API Keys", icon: Key },
+      { href: "/admin/lipsync", label: "Lip Sync GPU", icon: Clapperboard },
+      { href: "/admin/seo", label: "SEO & Indexing", icon: Search },
       { href: "/admin/cache", label: "Cache Manager", icon: Database },
       { href: "/admin/niche-data", label: "Niche RPM Data", icon: TrendingUp },
       { href: "/admin/system", label: "System Health", icon: Server },
@@ -63,6 +69,8 @@ const NAV_SECTIONS = [
     ],
   },
 ];
+
+export const metadata = { robots: { index: false, follow: false } };
 
 export default function AdminLayout({
   children,

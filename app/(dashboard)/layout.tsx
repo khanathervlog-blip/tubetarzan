@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import type { Profile } from "@/types/database";
 import { getAnnouncementBar } from "@/lib/site-settings";
+import { canUseLipSync } from "@/lib/lipsync-access";
 import AnnouncementBarWrapper from "@/components/shared/AnnouncementBarWrapper";
 
 const NAV_SECTIONS = [
@@ -87,6 +88,8 @@ const MOBILE_NAV = [
   { href: "/dashboard/script", label: "Script", icon: FileText },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
+
+export const metadata = { robots: { index: false, follow: false } };
 
 export default async function DashboardLayout({
   children,
@@ -148,7 +151,13 @@ export default async function DashboardLayout({
           </div>
 
           <nav className="flex-1 p-3 pb-2">
-            {NAV_SECTIONS.map((section, si) => (
+            {NAV_SECTIONS.map((section) => ({
+              ...section,
+              // Lip Sync: admins + paid plans that include Lip Sync minutes
+              items: section.items.filter(
+                (item) => item.href !== "/dashboard/studio/lipsync" || canUseLipSync(user.email, profile?.subscription_plan)
+              ),
+            })).map((section, si) => (
               <div key={section.label} className={si > 0 ? "mt-4" : ""}>
                 <p className="text-[#333333] text-[10px] font-bold uppercase tracking-widest px-3 mb-1">
                   {section.label}

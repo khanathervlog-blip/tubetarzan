@@ -1,11 +1,14 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Zap, Target, Users, TrendingUp } from "lucide-react";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "About — TubeTarzan",
-  description: "TubeTarzan is a YouTube viral intelligence platform built for serious automation creators.",
-};
+export const metadata = pageMetadata({
+  title: "About",
+  description: "TubeTarzan is a YouTube growth tool that finds viral video ideas with outlier scores and views per hour, then writes titles, hooks and scripts.",
+  path: "/about",
+  keywords: ["about TubeTarzan", "YouTube growth tool"],
+});
 
 export default function AboutPage() {
   return (

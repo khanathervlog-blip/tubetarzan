@@ -1,10 +1,13 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Privacy Policy — TubeTarzan",
-  description: "How TubeTarzan collects, uses, and protects your personal data.",
-};
+export const metadata = pageMetadata({
+  title: "Privacy Policy",
+  description: "How TubeTarzan collects, uses and protects your personal and YouTube data.",
+  path: "/privacy",
+  keywords: [],
+});
 
 export default function PrivacyPage() {
   return (

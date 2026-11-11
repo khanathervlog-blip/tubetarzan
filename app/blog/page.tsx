@@ -1,10 +1,13 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Blog — TubeTarzan",
-  description: "YouTube growth strategies, viral intelligence tips, and creator insights from TubeTarzan.",
-};
+export const metadata = pageMetadata({
+  title: "YouTube Growth Blog",
+  description: "YouTube growth strategies: outlier ratio, VPH, viral video ideas, titles, thumbnails and faceless channel tips from TubeTarzan.",
+  path: "/blog",
+  keywords: ["YouTube growth tips", "outlier ratio", "how to go viral on YouTube"],
+});
 
 const POSTS = [
   {

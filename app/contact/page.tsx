@@ -1,11 +1,14 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { Mail, MessageSquare, Clock } from "lucide-react";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Contact — TubeTarzan",
-  description: "Get in touch with the TubeTarzan team. We reply within 24 hours.",
-};
+export const metadata = pageMetadata({
+  title: "Contact",
+  description: "Contact the TubeTarzan team. Support, billing and partnership questions answered within 24 hours.",
+  path: "/contact",
+  keywords: ["TubeTarzan support"],
+});
 
 export default function ContactPage() {
   return (

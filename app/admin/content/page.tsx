@@ -1,6 +1,9 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { Film, Send, Clock, Mic, Subtitles } from "lucide-react";
 
+// Admin data must be fresh on every visit (otherwise it is frozen at build time)
+export const dynamic = "force-dynamic";
+
 export default async function ContentPage() {
   const svc = await createServiceClient();
 

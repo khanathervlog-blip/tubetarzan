@@ -1,10 +1,13 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Terms of Service — TubeTarzan",
-  description: "TubeTarzan Terms of Service. Read our terms before using the platform.",
-};
+export const metadata = pageMetadata({
+  title: "Terms of Service",
+  description: "TubeTarzan Terms of Service.",
+  path: "/terms",
+  keywords: [],
+});
 
 export default function TermsPage() {
   return (

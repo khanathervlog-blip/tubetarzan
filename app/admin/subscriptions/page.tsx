@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { ExternalLink, DollarSign } from "lucide-react";
 import type { Profile } from "@/types/database";
 
+// Admin data must be fresh on every visit (otherwise it is frozen at build time)
+export const dynamic = "force-dynamic";
+
 const STATUS_COLORS: Record<string, string> = {
   active: "#22C55E",
   trialing: "#FFD200",

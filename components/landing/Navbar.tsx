@@ -35,13 +35,13 @@ export default function Navbar() {
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-8">
             <a
-              href="#features"
+              href="/#inside"
               className="text-[#999999] hover:text-white transition-colors text-sm font-medium"
             >
               Features
             </a>
             <a
-              href="#pricing"
+              href="/#pricing"
               className="text-[#999999] hover:text-white transition-colors text-sm font-medium"
             >
               Pricing
@@ -75,14 +75,14 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden bg-[#080808] border-t border-[#1E1E1E] px-4 py-4 flex flex-col gap-4">
           <a
-            href="#features"
+            href="/#inside"
             className="text-[#999999] hover:text-white transition-colors text-base font-medium py-2"
             onClick={() => setMobileOpen(false)}
           >
             Features
           </a>
           <a
-            href="#pricing"
+            href="/#pricing"
             className="text-[#999999] hover:text-white transition-colors text-base font-medium py-2"
             onClick={() => setMobileOpen(false)}
           >

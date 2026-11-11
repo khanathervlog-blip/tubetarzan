@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Users, Download } from "lucide-react";
 import type { Lead } from "@/types/database";
 
+// Admin data must be fresh on every visit (otherwise it is frozen at build time)
+export const dynamic = "force-dynamic";
+
 const STATUS_COLORS: Record<string, string> = {
   captured: "#555555",
   trial_started: "#FFD200",

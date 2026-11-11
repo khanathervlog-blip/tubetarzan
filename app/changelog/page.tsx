@@ -1,10 +1,13 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Changelog — TubeTarzan",
-  description: "What's new in TubeTarzan. Product updates, improvements, and bug fixes.",
-};
+export const metadata = pageMetadata({
+  title: "Changelog",
+  description: "What's new in TubeTarzan: new YouTube research tools, improvements and fixes.",
+  path: "/changelog",
+  keywords: ["TubeTarzan updates"],
+});
 
 const CHANGES = [
   {

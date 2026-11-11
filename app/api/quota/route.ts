@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Profile } from "@/types/database";
 
-const PLAN_SCAN_LIMITS: Record<string, number | null> = {
-  free: 1,
-  creator: 3,
-  pro: null,
-  agency: null,
-};
+import { PLAN_SCAN_LIMITS as ENFORCED_LIMITS } from "@/lib/scan-limits";
+
+// Same limits the search route enforces (lib/scan-limits.ts); null = unlimited
+const PLAN_SCAN_LIMITS: Record<string, number | null> = Object.fromEntries(
+  Object.entries(ENFORCED_LIMITS).map(([plan, n]) => [plan, Number.isFinite(n) ? n : null])
+);
 
 export async function GET() {
   const supabase = await createClient();

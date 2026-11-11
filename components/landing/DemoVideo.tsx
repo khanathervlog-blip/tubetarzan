@@ -33,6 +33,7 @@ export default function DemoVideo({ videoUrl, videoTitle }: DemoVideoProps) {
               title={videoTitle || "TubeTarzan Demo"}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
+              loading="lazy"
               className="absolute inset-0 w-full h-full"
             />
           </div>

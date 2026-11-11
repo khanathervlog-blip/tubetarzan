@@ -2,7 +2,12 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { DollarSign, TrendingUp, TrendingDown, Users } from "lucide-react";
 import type { Profile } from "@/types/database";
 
-const PLAN_PRICES: Record<string, number> = { creator: 9, pro: 25, agency: 99 };
+import { PLAN_MONTHLY_PRICE } from "@/lib/plans";
+
+// Admin data must be fresh on every visit (otherwise it is frozen at build time)
+export const dynamic = "force-dynamic";
+
+const PLAN_PRICES: Record<string, number> = PLAN_MONTHLY_PRICE;
 // Estimated monthly costs (update as needed)
 const EST_API_COSTS = 312;
 const EST_INFRA_COSTS = 120;
@@ -48,9 +53,9 @@ export default async function RevenuePage() {
   const proj12 = Math.round(grossMrr * Math.pow(GROWTH, 12));
 
   const PLAN_ITEMS = [
-    { plan: "Creator", price: 9, count: byPlan.creator || 0 },
-    { plan: "Pro", price: 25, count: byPlan.pro || 0 },
-    { plan: "Agency", price: 99, count: byPlan.agency || 0 },
+    { plan: "Creator", price: PLAN_PRICES.creator, count: byPlan.creator || 0 },
+    { plan: "Pro", price: PLAN_PRICES.pro, count: byPlan.pro || 0 },
+    { plan: "Agency", price: PLAN_PRICES.agency, count: byPlan.agency || 0 },
   ];
 
   return (

@@ -1,11 +1,14 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import { CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Roadmap — TubeTarzan",
-  description: "See what's coming next to TubeTarzan. Voted on by our creator community.",
-};
+export const metadata = pageMetadata({
+  title: "Roadmap",
+  description: "What's coming next to TubeTarzan, the viral YouTube idea finder.",
+  path: "/roadmap",
+  keywords: ["TubeTarzan roadmap"],
+});
 
 const SHIPPED = [
   "Intelligence board with 200+ results, VPH, and outlier ratio",

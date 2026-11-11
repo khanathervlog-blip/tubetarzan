@@ -1,10 +1,13 @@
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
+import { pageMetadata } from "@/lib/site";
 
-export const metadata = {
-  title: "Cookie Policy — TubeTarzan",
-  description: "How TubeTarzan uses cookies and similar tracking technologies.",
-};
+export const metadata = pageMetadata({
+  title: "Cookie Policy",
+  description: "How TubeTarzan uses cookies.",
+  path: "/cookies",
+  keywords: [],
+});
 
 export default function CookiesPage() {
   return (

@@ -3,6 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Zap, Loader2 } from "lucide-react";
+import { PLAN_PRICES, LIPSYNC_SECONDS_PER_MONTH, annualPerMonth } from "@/lib/plans";
+
+// Lip Sync minutes are only advertised once Lip Sync is open to paid plans (NEXT_PUBLIC_LIPSYNC_PAID=true)
+const LIPSYNC_FOR_PAID = process.env.NEXT_PUBLIC_LIPSYNC_PAID === "true";
+const lipsyncMinutes = (plan: string): string[] =>
+  LIPSYNC_FOR_PAID ? [`Lip Sync: ${LIPSYNC_SECONDS_PER_MONTH[plan] / 60} min / month`] : [];
 
 const PLANS = [
   {
@@ -23,8 +29,8 @@ const PLANS = [
   },
   {
     name: "Creator",
-    price: { monthly: 9, annual: 79 },
-    annualNote: "$6.58/month",
+    price: PLAN_PRICES.creator,
+    annualNote: annualPerMonth("creator"),
     description: "For creators serious about growth",
     cta: "Start Free Trial",
     ctaHref: "/signup?plan=creator",
@@ -39,12 +45,13 @@ const PLANS = [
       "Tag copy",
       "One-click apply",
       "Packaging studio",
+      ...lipsyncMinutes("creator"),
     ],
   },
   {
     name: "Pro",
-    price: { monthly: 25, annual: 228 },
-    annualNote: "$19/month",
+    price: PLAN_PRICES.pro,
+    annualNote: annualPerMonth("pro"),
     description: "For full-time YouTube operators",
     cta: "Start Free Trial",
     ctaHref: "/signup?plan=pro",
@@ -60,14 +67,15 @@ const PLANS = [
       "One-click apply",
       "Packaging studio",
       "Bulk video update",
+      ...lipsyncMinutes("pro"),
     ],
   },
 ];
 
 const AGENCY_PLAN = {
   name: "Agency",
-  price: { monthly: 99, annual: 950 },
-  annualNote: "$79.16/month",
+  price: PLAN_PRICES.agency,
+  annualNote: annualPerMonth("agency"),
   description: "For agencies managing multiple channels",
   cta: "Start Free Trial",
   ctaHref: "/signup?plan=agency",
@@ -78,6 +86,7 @@ const AGENCY_PLAN = {
     "2 team seats",
     "Unlimited competitors",
     "Priority support",
+    ...lipsyncMinutes("agency"),
   ],
 };
 
@@ -298,7 +307,7 @@ export default function Pricing() {
           <p className="text-[#555555] text-sm">
             VidIQ charges $49/month for their Boost plan.{" "}
             <span className="text-[#999999]">
-              TubeTarzan Pro gives you more — for $25/month. No annual lock-in required.
+              TubeTarzan Pro gives you more — for ${PLAN_PRICES.pro.monthly}/month. No annual lock-in required.
             </span>
           </p>
         </div>
