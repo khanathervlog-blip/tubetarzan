@@ -124,7 +124,9 @@ export async function POST(request: NextRequest) {
         profile.youtube_quota_reset_date === today
           ? profile.youtube_quota_used_today || 0
           : 0;
-      await supabase
+      const { createServiceClient } = await import("@/lib/supabase/server");
+      const svc = await createServiceClient();
+      await svc
         .from("profiles")
         .update({
           youtube_quota_used_today: currentUsed + quotaUsed,

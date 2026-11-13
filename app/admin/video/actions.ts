@@ -3,6 +3,9 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { SITE_SETTINGS_TAG } from "@/lib/site-settings";
+import { requireAdminUser } from "@/lib/admin-exemption";
+
+const safeUrl = (u?: string) => !u || /^https:\/\/[^\s"'<>]+$/i.test(u);
 
 export async function saveVideoSettings(settings: {
   hero_video_url: string;
@@ -13,6 +16,11 @@ export async function saveVideoSettings(settings: {
   announcement_bar_link_text?: string;
   onboarding_api_key_video?: string;
 }): Promise<{ error: string | null }> {
+  // SECURITY: server actions can be called directly - always verify the caller is an admin
+  if (!(await requireAdminUser())) return { error: "Forbidden" };
+  if (![settings.hero_video_url, settings.announcement_bar_link, settings.onboarding_api_key_video].every(safeUrl)) {
+    return { error: "Links must start with https://" };
+  }
   const supabase = await createServiceClient();
 
   const announcementJson = JSON.stringify({

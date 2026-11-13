@@ -3,18 +3,14 @@ import crypto from "crypto";
 import { createServiceClient } from "@/lib/supabase/server";
 import { VARIANT_PLAN_MAP } from "@/lib/lemonsqueezy";
 import { Resend } from "resend";
+import { escapeHtml } from "@/lib/html-escape";
 import type { Profile, LemonsqueezyEvent } from "@/types/database";
 
 function verifySignature(payload: string, signature: string): boolean {
-  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET!;
-  const hmac = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(hmac, "hex"),
-    Buffer.from(signature, "hex")
-  );
+  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+  if (!secret || !/^[0-9a-f]{64}$/i.test(signature)) return false;
+  const hmac = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(signature, "hex"));
 }
 
 export async function POST(request: NextRequest) {
@@ -92,7 +88,7 @@ export async function POST(request: NextRequest) {
           from: "TubeTarzan <hello@tubetarzan.com>",
           to: attrs.user_email,
           subject: "Your TubeTarzan trial is live — 3 things to do today",
-          html: `<p>Hi ${attrs.user_name || "there"},</p>
+          html: `<p>Hi ${escapeHtml(attrs.user_name || "there")},</p>
 <p>Your ${plan} trial is active! Here's what to do first:</p>
 <ol>
 <li>Complete your onboarding setup</li>
@@ -151,7 +147,7 @@ export async function POST(request: NextRequest) {
           from: "TubeTarzan <hello@tubetarzan.com>",
           to: attrs.user_email,
           subject: "We're sorry to see you go",
-          html: `<p>Your subscription has been cancelled. You'll keep access until ${attrs.ends_at}.</p>
+          html: `<p>Your subscription has been cancelled. You'll keep access until ${escapeHtml(attrs.ends_at)}.</p>
 <p>If there was something we could have done better, reply to this email — we read every message.</p>
 <p>— The TubeTarzan Team</p>`,
         });

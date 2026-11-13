@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 // Requires: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS tag_bank jsonb DEFAULT '[]';
 // Run this in Supabase SQL Editor before using this endpoint.
@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
   const existing = (profileRaw as { tag_bank?: unknown[] } | null)?.tag_bank || [];
   const updated = [entry, ...(existing as typeof entry[])].slice(0, 50); // keep latest 50
 
-  const { error } = await supabase
+  const svc = await createServiceClient();
+  const { error } = await svc
     .from("profiles")
     .update({ tag_bank: updated } as Record<string, unknown>)
     .eq("id", user.id);

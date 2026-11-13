@@ -3,11 +3,13 @@ import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 import { scoreTitle } from "@/lib/scoring";
 import type { Profile } from "@/types/database";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`packaging:${user.id}`, 60, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const body = await request.json() as {
     type: "thumbnail" | "hooks" | "outline" | "policy" | "description" | "tags";

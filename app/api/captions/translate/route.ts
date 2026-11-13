@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`captions-translate:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const { words, targetLanguage = "English" } = await request.json();
   if (!words || !Array.isArray(words)) return NextResponse.json({ error: "words array required" }, { status: 400 });

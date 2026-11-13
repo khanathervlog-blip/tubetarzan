@@ -241,8 +241,14 @@ def run_lipsync(video_url: str, audio_url: str, upload_url: str) -> str:
     try:
         if not video_url or not audio_url:
             raise ValueError("video_url and audio_url are required.")
-        if ALLOWED_UPLOAD_PREFIX and upload_url and not upload_url.startswith(ALLOWED_UPLOAD_PREFIX):
-            raise ValueError("upload_url is not allowed.")
+        # SECURITY: this Space is public - only work on files in your own Supabase storage
+        if ALLOWED_UPLOAD_PREFIX:
+            for u in (video_url, audio_url, upload_url):
+                if u and not u.startswith(ALLOWED_UPLOAD_PREFIX):
+                    raise ValueError("URL is not allowed.")
+        for u in (video_url, audio_url, upload_url):
+            if u and not u.startswith("https://"):
+                raise ValueError("Only https URLs are accepted.")
 
         face, voice, voice16 = f"{tmp}/face.mp4", f"{tmp}/voice", f"{tmp}/voice16.wav"
         raw, final = f"{tmp}/raw.mp4", f"{tmp}/final.mp4"

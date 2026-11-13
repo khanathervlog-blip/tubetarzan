@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
 import type { Profile } from "@/types/database";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const FREE_DAILY_LIMIT = 2;
@@ -10,6 +11,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`script:${user.id}`, 20, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const { data: profileRaw } = await supabase
     .from("profiles")

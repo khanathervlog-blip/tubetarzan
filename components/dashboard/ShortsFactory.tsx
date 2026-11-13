@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { startPoller } from "@/lib/poll";
 import { Zap, Loader2, AlertCircle, CheckCircle, ExternalLink } from "lucide-react";
 
 const VOICES = [
@@ -23,6 +24,8 @@ interface ShortScript {
 
 export default function ShortsFactory() {
   const [topic, setTopic] = useState("");
+  const renderPollRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { renderPollRef.current?.(); }, []);
   const [hook, setHook] = useState("");
   const [voice, setVoice] = useState("en-US-Neural2-A");
   const [duration, setDuration] = useState<30 | 60>(60);
@@ -136,21 +139,12 @@ export default function ShortsFactory() {
 
     // Step 4: Send to Railway for render
     setStep("render");
-    const ffmpegUrl = process.env.NEXT_PUBLIC_FFMPEG_SERVICE_URL;
-    if (!ffmpegUrl) {
-      setNoRailway(true);
-      setStep("done");
-      return;
-    }
-
     try {
       const audioBase64 = chunks[0] || "";
-      const res = await fetch(`${ffmpegUrl}/render/assemble`, {
+      // Goes through our server, which adds the Railway token (never sent to the browser)
+      const res = await fetch("/api/shorts/render", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_RAILWAY_TOKEN || ""}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           audioBase64,
           brollUrls: brolls.slice(0, 3).map(b => b.url),
@@ -159,10 +153,13 @@ export default function ShortsFactory() {
           title: topic.trim(),
         }),
       });
-      const data = await res.json();
-      if (data.jobId) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 503 || data.noRailway) {
+        setNoRailway(true);
+        setStep("done");
+      } else if (data.jobId) {
         setJobId(data.jobId);
-        pollRender(data.jobId, ffmpegUrl);
+        pollRender(data.jobId);
       } else {
         setStep("done");
       }
@@ -172,27 +169,26 @@ export default function ShortsFactory() {
     }
   }
 
-  async function pollRender(id: string, baseUrl: string) {
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 30) { clearInterval(interval); setStep("done"); return; }
-      try {
-        const res = await fetch(`${baseUrl}/render/status/${id}`);
+  function pollRender(id: string) {
+    renderPollRef.current?.();
+    renderPollRef.current = startPoller(
+      async () => {
+        const res = await fetch(`/api/shorts/render/${encodeURIComponent(id)}`);
+        if (!res.ok) throw new Error("status failed");
         const data = await res.json();
         if (data.status === "done" && data.url) {
           setRenderUrl(data.url);
           setStep("done");
-          clearInterval(interval);
-        } else if (data.status === "failed") {
-          setStep("done");
-          clearInterval(interval);
+          return true;
         }
-      } catch {
-        clearInterval(interval);
-        setStep("done");
-      }
-    }, 10000);
+        if (data.status === "failed") {
+          setStep("done");
+          return true;
+        }
+        return false;
+      },
+      { intervalMs: 10_000, maxDurationMs: 5 * 60_000, onTimeout: () => setStep("done") }
+    );
   }
 
   const stepLabels: Record<string, string> = {

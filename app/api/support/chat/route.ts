@@ -23,10 +23,38 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
+    // SECURITY: never trust a conversationId from the browser. Continue it only if it is a chat
+    // conversation owned by this signed-in user, or (for visitors) the one recorded for this browser's
+    // visitorId. Otherwise start a new conversation - so nobody can read or append to someone else's chat.
+    let safeConversationId: string | undefined;
+    if (typeof conversationId === "string" && /^[0-9a-f-]{36}$/i.test(conversationId)) {
+      const { createServiceClient } = await import("@/lib/supabase/server");
+      const svc = await createServiceClient();
+      const { data: conv } = await svc
+        .from("support_conversations")
+        .select("id, user_id, channel")
+        .eq("id", conversationId)
+        .maybeSingle();
+      let owned = false;
+      if (conv && conv.channel === "chat") {
+        if (conv.user_id) {
+          owned = !!user && conv.user_id === user.id;
+        } else if (typeof visitorId === "string" && visitorId.length >= 8) {
+          const { data: sess } = await svc
+            .from("support_chat_sessions")
+            .select("conversation_id")
+            .eq("visitor_id", visitorId)
+            .maybeSingle();
+          owned = sess?.conversation_id === conversationId;
+        }
+      }
+      if (owned) safeConversationId = conversationId;
+    }
+
     const result = await runSupportPipeline({
       channel: "chat",
       message: message.trim(),
-      conversationId,
+      conversationId: safeConversationId,
       userId: user?.id,
       contactEmail: user?.email,
     });

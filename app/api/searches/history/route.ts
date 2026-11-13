@@ -34,12 +34,14 @@ export async function POST(request: NextRequest) {
 
   let body: { niche?: string; results?: unknown };
   try {
-    body = await request.json();
+    const raw = await request.text();
+    if (raw.length > 3_000_000) return NextResponse.json({ error: "Too large" }, { status: 413 });
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  if (!body.niche || !body.results) {
+  if (!body.niche || typeof body.niche !== "string" || body.niche.length > 200 || !body.results) {
     return NextResponse.json({ error: "Missing niche or results" }, { status: 400 });
   }
 

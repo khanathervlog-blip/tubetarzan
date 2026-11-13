@@ -85,13 +85,17 @@ export default function AdminSettingsPage() {
 
   async function toggleMaintenance() {
     setSaving(true);
-    const supabase = createClient();
     const newValue = !maintenanceMode;
-    await supabase.from("admin_settings").upsert({
-      key: "maintenance_mode",
-      value: newValue ? "true" : "false",
-      updated_at: new Date().toISOString(),
-    } as AdminSetting);
+    const res = await fetch("/api/admin/settings/maintenance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: newValue }),
+    });
+    if (!res.ok) {
+      setSaving(false);
+      flash("Could not change maintenance mode");
+      return;
+    }
     setMaintenanceMode(newValue);
     setSaving(false);
     flash(`Maintenance mode ${newValue ? "enabled" : "disabled"}`);
@@ -100,8 +104,11 @@ export default function AdminSettingsPage() {
   async function clearCache() {
     if (!confirm("Clear all search cache? The next scans will be slower.")) return;
     setClearing(true);
-    const supabase = createClient();
-    await supabase.from("search_cache").delete().gte("id", "0");
+    await fetch("/api/admin/cache", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "search" }),
+    });
     setCacheCount(0);
     setClearing(false);
     flash("Cache cleared");
