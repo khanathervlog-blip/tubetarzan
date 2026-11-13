@@ -74,7 +74,17 @@ async function fetchTranscript(videoId: string) {
     tracks.find((t) => t.languageCode.startsWith("en")) ||
     tracks[0];
 
-  const xmlRes = await fetch(track.baseUrl);
+  // SECURITY: the caption URL comes from a scraped page - only ever fetch it from YouTube itself
+  let captionUrl: URL;
+  try {
+    captionUrl = new URL(track.baseUrl);
+  } catch {
+    throw new Error("Invalid caption URL");
+  }
+  if (captionUrl.protocol !== "https:" || !/(^|\.)(youtube\.com|googlevideo\.com)$/.test(captionUrl.hostname)) {
+    throw new Error("Unexpected caption host");
+  }
+  const xmlRes = await fetch(captionUrl.toString());
   if (!xmlRes.ok) throw new Error("Failed to fetch transcript content");
   const xml = await xmlRes.text();
 

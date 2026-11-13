@@ -10,6 +10,7 @@ import {
   setCachedThreshold,
 } from "./support-cache";
 import { Resend } from "resend";
+import { escapeHtml } from "./html-escape";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -229,18 +230,18 @@ async function notifyAdmin(
     await resend.emails.send({
       from: "TubeTarzan Support <noreply@tubetarzan.com>",
       to: notifyEmail,
-      subject: `⚠️ Support needs review — ${input.subject || "Chat query"}`,
+      subject: `⚠️ Support needs review — ${(input.subject || "Chat query").replace(/[\r\n]+/g, " ").slice(0, 120)}`,
       html: `
         <h2>Support query needs your review</h2>
-        <p><strong>Channel:</strong> ${input.channel}</p>
-        <p><strong>From:</strong> ${input.contactEmail || "Chat visitor"}</p>
+        <p><strong>Channel:</strong> ${escapeHtml(input.channel)}</p>
+        <p><strong>From:</strong> ${escapeHtml(input.contactEmail || "Chat visitor")}</p>
         <p><strong>Confidence:</strong> ${confidence}% (below ${threshold}% threshold)</p>
         <hr/>
         <h3>Customer message:</h3>
-        <p>${input.message}</p>
+        <p style="white-space:pre-wrap">${escapeHtml(input.message)}</p>
         <hr/>
         <h3>AI draft reply:</h3>
-        <p>${draftReply.replace("ESCALATE: ", "")}</p>
+        <p style="white-space:pre-wrap">${escapeHtml(draftReply.replace("ESCALATE: ", ""))}</p>
         <hr/>
         <a href="https://tubetarzan.com/admin/support" style="background:#FFD200;padding:12px 24px;text-decoration:none;color:#000;font-weight:bold;border-radius:6px;">
           Review in Admin Panel →

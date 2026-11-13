@@ -12,6 +12,7 @@ import { FAQS } from "@/lib/landing-content";
 import { PLAN_PRICES } from "@/lib/plans";
 import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 import type { Metadata } from "next";
+import { safeJsonForScript } from "@/lib/html-escape";
 
 // Static page with incremental regeneration: rendered once, then refreshed in the background at most
 // every 5 minutes (or immediately when an admin saves the hero/announcement settings).
@@ -88,7 +89,7 @@ export default async function LandingPage() {
 
   return (
     <main className="bg-[#080808] min-h-screen overflow-x-clip">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonForScript(jsonLd()) }} />
 
       {announcementActive && announcementText && (
         <div className="bg-[#FF3B3B] text-white text-center text-sm font-medium py-2.5 px-4">{announcementText}</div>
