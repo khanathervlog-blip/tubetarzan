@@ -90,16 +90,13 @@ export async function POST(request: Request) {
   }
   const total = clips.reduce((s, c) => s + c.duration, 0);
   if (total > access.maxRunSeconds + 1) {
-    return NextResponse.json(
-      {
-        error: access.remainingSeconds !== null && total > access.remainingSeconds
-          ? "monthly_limit_reached"
-          : "too_long",
-        totalSeconds: total,
-        access,
-      },
-      { status: 429 }
-    );
+    const error =
+      access.remainingSeconds !== null && total > access.remainingSeconds
+        ? "monthly_limit_reached"
+        : total > access.poolRemainingSeconds
+          ? "daily_gpu_budget" // today's GPU safety budget of the key pool is used up
+          : "too_long";
+    return NextResponse.json({ error, totalSeconds: total, access }, { status: 429 });
   }
 
   const svc = await createServiceClient();

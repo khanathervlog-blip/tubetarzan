@@ -46,6 +46,14 @@ export const LIPSYNC_SECONDS_PER_MONTH: Record<string, number> = {
   agency: 900,
 };
 
+/**
+ * Daily GPU safety budget: lip-synced VIDEO seconds each Hugging Face key may spend per day, so the pool
+ * never runs into ZeroGPU quota errors. 10 keys × 60 s = 10 min of video per day by default.
+ * Override with the LIPSYNC_DAILY_SECONDS_PER_KEY env var once the real GPU time per clip is known
+ * (admin → Lip Sync shows the "took" time of each clip).
+ */
+export const LIPSYNC_DAILY_SECONDS_PER_KEY = 60;
+
 /** Longest single clip sent to the GPU, and the longest whole video one run may contain. */
 export const LIPSYNC_MAX_CLIP_SECONDS = 60;
 export const LIPSYNC_MAX_RUN_SECONDS = 12 * 60;

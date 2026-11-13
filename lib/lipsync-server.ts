@@ -6,6 +6,7 @@ import {
   LIPSYNC_SECONDS_PER_MONTH,
   LIPSYNC_MAX_RUN_SECONDS,
   LIPSYNC_MAX_RUN_SECONDS_ADMIN,
+  LIPSYNC_DAILY_SECONDS_PER_KEY,
 } from "./plans";
 
 /**
@@ -60,12 +61,38 @@ export interface LipsyncAccess {
   remainingSeconds: number | null;
   maxRunSeconds: number;
   configured: boolean;
+  /** Daily GPU safety budget of the whole key pool (video seconds), today's use, and what is left today. */
+  poolBudgetSeconds: number;
+  poolUsedTodaySeconds: number;
+  poolRemainingSeconds: number;
   reason?: string;
 }
 
 function startOfMonthIso(): string {
   const d = new Date();
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
+}
+
+/** Video seconds each key may spend per day (env override wins; see lib/plans.ts). */
+export function dailySecondsPerKey(): number {
+  const v = Number(process.env.LIPSYNC_DAILY_SECONDS_PER_KEY);
+  return Number.isFinite(v) && v > 0 ? v : LIPSYNC_DAILY_SECONDS_PER_KEY;
+}
+
+/** Today's pool state: budget = keys × per-key seconds; used = lipsync_key_usage rows of today. */
+export async function getPoolToday(): Promise<{ budget: number; used: number; remaining: number }> {
+  const tokens = hfTokens();
+  const budget = tokens.length * dailySecondsPerKey();
+  if (!tokens.length) return { budget: 0, used: 0, remaining: 0 };
+  const svc = await createServiceClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await svc
+    .from("lipsync_key_usage")
+    .select("seconds")
+    .eq("day", today)
+    .in("key_fp", tokens.map(keyFingerprint));
+  const used = (data || []).reduce((s: number, u: any) => s + Number(u.seconds || 0), 0);
+  return { budget, used, remaining: Math.max(0, budget - used) };
 }
 
 /** Who may use Lip Sync and how many seconds they have left this month. */
@@ -81,18 +108,38 @@ export async function getLipsyncAccess(userId: string, email: string | null | un
   const plan = (profile?.subscription_plan as string) || "free";
   const status = (profile?.subscription_status as string) || "inactive";
 
-  const { data: clips } = await svc
-    .from("lipsync_clips")
-    .select("duration_sec, status")
-    .eq("user_id", userId)
-    .gte("created_at", startOfMonthIso())
-    .neq("status", "failed");
+  const [{ data: clips }, pool] = await Promise.all([
+    svc
+      .from("lipsync_clips")
+      .select("duration_sec, status")
+      .eq("user_id", userId)
+      .gte("created_at", startOfMonthIso())
+      .neq("status", "failed"),
+    getPoolToday(),
+  ]);
   const usedSeconds = (clips || []).reduce((s: number, c: any) => s + Number(c.duration_sec || 0), 0);
 
-  const base = { isAdmin, plan, status, usedSeconds, configured: lipsyncConfigured() };
+  const base = {
+    isAdmin,
+    plan,
+    status,
+    usedSeconds,
+    configured: lipsyncConfigured(),
+    poolBudgetSeconds: pool.budget,
+    poolUsedTodaySeconds: pool.used,
+    poolRemainingSeconds: pool.remaining,
+  };
 
   if (isAdmin) {
-    return { ...base, allowed: true, allowanceSeconds: null, remainingSeconds: null, maxRunSeconds: LIPSYNC_MAX_RUN_SECONDS_ADMIN };
+    // Admin has no monthly allowance, but the daily GPU safety budget of the key pool still applies.
+    return {
+      ...base,
+      allowed: true,
+      allowanceSeconds: null,
+      remainingSeconds: null,
+      maxRunSeconds: Math.min(LIPSYNC_MAX_RUN_SECONDS_ADMIN, pool.remaining),
+      reason: pool.remaining <= 0 && base.configured ? "daily_gpu_budget" : undefined,
+    };
   }
 
   // Paid plans get Lip Sync only once a commercially licensed engine is connected (see hf-space/README.md)
@@ -120,7 +167,7 @@ export async function getLipsyncAccess(userId: string, email: string | null | un
     allowed: true,
     allowanceSeconds,
     remainingSeconds,
-    maxRunSeconds: Math.min(LIPSYNC_MAX_RUN_SECONDS, remainingSeconds),
+    maxRunSeconds: Math.min(LIPSYNC_MAX_RUN_SECONDS, remainingSeconds, pool.remaining),
   };
 }
 

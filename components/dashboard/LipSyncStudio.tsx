@@ -17,6 +17,9 @@ interface Access {
   remainingSeconds: number | null;
   maxRunSeconds: number;
   configured: boolean;
+  poolBudgetSeconds?: number;
+  poolUsedTodaySeconds?: number;
+  poolRemainingSeconds?: number;
   reason?: string;
 }
 interface Clip { id: string; idx: number; start: number; duration: number; status: string; error?: string | null; attempts?: number; downloadUrl?: string | null }
@@ -29,6 +32,7 @@ const REASONS: Record<string, string> = {
   subscription_inactive: "Your subscription isn't active. Renew it to use your Lip Sync minutes.",
   not_set_up: "Lip Sync isn't set up in the database yet (admin: run PHASE9_MIGRATIONS.sql).",
   monthly_limit_reached: "You've used this month's Lip Sync minutes.",
+  daily_gpu_budget: "Today's free GPU budget is used up. It resets at midnight UTC - continue tomorrow.",
   too_long: "This audio is longer than you can lip-sync in one go.",
   not_configured: "The Lip Sync GPU isn't connected yet. Please try again later.",
 };
@@ -276,11 +280,25 @@ export default function LipSyncStudio() {
         {access && (
           <div className="bg-[#111111] border border-[#1E1E1E] rounded-lg px-4 py-2 text-sm">
             {access.isAdmin ? (
-              <span className="text-[#FFD200] font-semibold">Admin · unlimited</span>
+              <span className="text-[#FFD200] font-semibold">
+                Admin
+                {typeof access.poolRemainingSeconds === "number" && (access.poolBudgetSeconds || 0) > 0 && (
+                  <span className="text-gray-300 font-normal">
+                    {" "}· GPU today:{" "}
+                    <b className={access.poolRemainingSeconds > 0 ? "text-white" : "text-[#FF3B3B]"}>
+                      {formatSeconds(access.poolRemainingSeconds)}
+                    </b>{" "}
+                    of {formatSeconds(access.poolBudgetSeconds || 0)} left
+                  </span>
+                )}
+              </span>
             ) : (
               <span className="text-gray-300">
                 Used <b className="text-white">{formatSeconds(access.usedSeconds)}</b> of{" "}
                 <b className="text-white">{formatSeconds(access.allowanceSeconds || 0)}</b> this month
+                {typeof access.poolRemainingSeconds === "number" && access.poolRemainingSeconds <= 0 && (
+                  <span className="text-[#FF3B3B]"> · today&apos;s GPU budget is used up</span>
+                )}
               </span>
             )}
           </div>

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { CheckCircle2, XCircle, KeyRound, Clapperboard, RefreshCw } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
-import { hfTokens, keyFingerprint, spaceReference, lipsyncOpenToPaidPlans } from "@/lib/lipsync-server";
+import { hfTokens, keyFingerprint, spaceReference, lipsyncOpenToPaidPlans, dailySecondsPerKey } from "@/lib/lipsync-server";
 import { LIPSYNC_SECONDS_PER_MONTH, formatSeconds } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,9 @@ export default async function AdminLipSyncPage() {
   const who = new Map((profiles || []).map((p: any) => [p.id, p]));
   const totalSeconds = Array.from(perUser.values()).reduce((s, e) => s + e.seconds, 0);
   const todaySeconds = (usage.data || []).reduce((s: number, u: any) => s + Number(u.seconds || 0), 0);
+  const poolBudget = tokens.length * dailySecondsPerKey();
+  const poolRemaining = Math.max(0, poolBudget - todaySeconds);
+  const poolPct = poolBudget > 0 ? Math.round((todaySeconds / poolBudget) * 100) : 0;
 
   return (
     <div className="max-w-6xl space-y-6">
@@ -82,14 +85,30 @@ export default async function AdminLipSyncPage() {
           </ul>
         </div>
         <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5">
-          <h2 className="text-white font-semibold text-sm mb-4">This month</h2>
+          <h2 className="text-white font-semibold text-sm mb-4">GPU quota</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div><p className="text-[#555555] text-xs uppercase">Lip-synced</p><p className="text-white text-2xl font-bold">{formatSeconds(totalSeconds)}</p></div>
-            <div><p className="text-[#555555] text-xs uppercase">Today (all keys)</p><p className="text-white text-2xl font-bold">{formatSeconds(todaySeconds)}</p></div>
+            <div>
+              <p className="text-[#555555] text-xs uppercase">Today</p>
+              <p className="text-white text-2xl font-bold">
+                {formatSeconds(todaySeconds)} <span className="text-[#555555] text-sm font-normal">/ {formatSeconds(poolBudget)}</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-[#555555] text-xs uppercase">Left today</p>
+              <p className={`text-2xl font-bold ${poolRemaining > 0 ? "text-[#22C55E]" : "text-[#FF3B3B]"}`}>{formatSeconds(poolRemaining)}</p>
+            </div>
           </div>
-          <p className="text-[#555555] text-xs mt-4">
-            Allowances: Creator {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.creator)} · Pro {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.pro)} · Agency{" "}
-            {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.agency)} per month (lib/plans.ts). Admin unlimited.
+          <div className="h-2 bg-[#1E1E1E] rounded-full mt-4 overflow-hidden">
+            <div
+              className={`h-full rounded-full ${poolPct >= 100 ? "bg-[#FF3B3B]" : poolPct >= 80 ? "bg-[#FFD200]" : "bg-[#22C55E]"}`}
+              style={{ width: `${Math.min(100, poolPct)}%` }}
+            />
+          </div>
+          <p className="text-[#555555] text-xs mt-3">
+            Budget = {tokens.length} key{tokens.length === 1 ? "" : "s"} × {formatSeconds(dailySecondsPerKey())} of video per day
+            (LIPSYNC_DAILY_SECONDS_PER_KEY env). Runs stop at this budget so the free ZeroGPU quota is never exceeded; it resets at
+            midnight UTC. This month: {formatSeconds(totalSeconds)}. Allowances: Creator {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.creator)} ·
+            Pro {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.pro)} · Agency {formatSeconds(LIPSYNC_SECONDS_PER_MONTH.agency)} per month.
           </p>
         </div>
       </div>
