@@ -288,7 +288,6 @@ demo = gr.Interface(
     title="TubeTarzan Lip Sync worker",
     description="Internal GPU worker for TubeTarzan. Paste signed URLs to test one clip (60 s max).",
     api_name="run_lipsync",
-    allow_flagging="never",
 )
 
 if __name__ == "__main__":
