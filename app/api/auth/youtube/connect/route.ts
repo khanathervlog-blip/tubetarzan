@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
   // "addChannel=true" → append to allowed_channel_data instead of replacing locked_channel
   const addChannel = searchParams.get("addChannel") === "true";
 
-  const state = Buffer.from(JSON.stringify({ returnTo, addChannel })).toString("base64");
+  // SECURITY: random nonce, checked in the callback, so nobody can make a victim's account link
+  // someone else's YouTube channel by sending them a crafted callback link (OAuth login CSRF).
+  const nonce = crypto.randomUUID();
+  const state = Buffer.from(JSON.stringify({ returnTo: returnTo === "dashboard" ? "dashboard" : "onboarding", addChannel, nonce })).toString("base64");
 
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
@@ -24,7 +27,13 @@ export async function GET(request: NextRequest) {
     state,
   });
 
-  return NextResponse.redirect(
-    `https://accounts.google.com/o/oauth2/v2/auth?${params}`
-  );
+  const res = NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  res.cookies.set("yt_oauth_nonce", nonce, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/auth/youtube",
+    maxAge: 600,
+  });
+  return res;
 }

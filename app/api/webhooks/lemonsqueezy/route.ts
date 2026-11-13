@@ -6,15 +6,10 @@ import { Resend } from "resend";
 import type { Profile, LemonsqueezyEvent } from "@/types/database";
 
 function verifySignature(payload: string, signature: string): boolean {
-  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET!;
-  const hmac = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(hmac, "hex"),
-    Buffer.from(signature, "hex")
-  );
+  const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
+  if (!secret || !/^[0-9a-f]{64}$/i.test(signature)) return false;
+  const hmac = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(signature, "hex"));
 }
 
 export async function POST(request: NextRequest) {

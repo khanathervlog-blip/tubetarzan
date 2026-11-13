@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const stateParam = searchParams.get("state");
   let returnTo = "onboarding";
   let addChannel = false;
+  let nonce = "";
   try {
     if (stateParam) {
       const decoded = Buffer.from(stateParam, "base64").toString();
@@ -31,8 +32,9 @@ export async function GET(request: NextRequest) {
         const parsed = JSON.parse(decoded);
         returnTo = parsed.returnTo || "onboarding";
         addChannel = parsed.addChannel === true;
+        nonce = typeof parsed.nonce === "string" ? parsed.nonce : "";
       } catch {
-        returnTo = decoded; // legacy plain-string state
+        returnTo = "onboarding";
       }
     }
   } catch { /* ignore */ }
@@ -42,6 +44,12 @@ export async function GET(request: NextRequest) {
     : `${process.env.NEXT_PUBLIC_APP_URL}/onboarding?error=oauth_failed`;
 
   if (error || !code) {
+    return NextResponse.redirect(failRedirect);
+  }
+
+  // SECURITY: the state must carry the nonce we set in this browser when the flow started
+  const expected = request.cookies.get("yt_oauth_nonce")?.value;
+  if (!nonce || !expected || nonce !== expected) {
     return NextResponse.redirect(failRedirect);
   }
 

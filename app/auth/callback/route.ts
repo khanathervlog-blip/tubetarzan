@@ -5,7 +5,9 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const rawNext = searchParams.get("next") ?? "/dashboard";
+  // SECURITY: only same-site paths ("/x"), never "//host", "/\\host" or "@host" (open redirect)
+  const next = /^\/(?![\/\\])[^@\s]*$/.test(rawNext) ? rawNext : "/dashboard";
   const errorParam = searchParams.get("error");
   const errorCode = searchParams.get("error_code");
 
