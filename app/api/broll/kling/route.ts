@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 // Kling AI API — text-to-video generation
 // Docs: https://klingai.com/developer — update endpoint if their API version changes
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`kling:${user.id}`, 10, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const svc = await createServiceClient();
   const { data: profile } = await svc

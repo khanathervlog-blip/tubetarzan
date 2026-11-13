@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 const STYLES: Record<string, string> = {
   dramatic: "dramatic cinematic YouTube thumbnail, intense lighting, bold colors, high contrast",
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`thumbnail:${user.id}`, 15, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const svc = await createServiceClient();
   const { data: profileRaw } = await svc

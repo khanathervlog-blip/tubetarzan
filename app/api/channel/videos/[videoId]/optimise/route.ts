@@ -4,6 +4,7 @@ import { verifyChannelOwnership } from "@/lib/channel-security";
 import { scoreTitle } from "@/lib/scoring";
 import OpenAI from "openai";
 import type { ChannelVideoCache } from "@/types/database";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,7 @@ export async function POST(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`optimise:${user.id}`, 120, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const body = await request.json() as { channelId?: string };
   const { channelId } = body;

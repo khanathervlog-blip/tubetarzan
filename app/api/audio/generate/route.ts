@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 const GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize";
 
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`audio:${user.id}`, 20, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const svc = await createServiceClient();
   const { data: profile } = await svc

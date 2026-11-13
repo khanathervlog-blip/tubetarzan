@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 function extractVideoId(input: string): string | null {
   const patterns = [
@@ -122,6 +123,7 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`transcript:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const { url } = await request.json();
   if (!url?.trim()) return NextResponse.json({ error: "YouTube URL required" }, { status: 400 });

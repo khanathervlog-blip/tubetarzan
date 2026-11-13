@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateVideoIdea } from "@/lib/claude";
 import type { Profile } from "@/types/database";
 import type { EnrichedVideo } from "@/types/youtube";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -13,6 +14,7 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!rateLimit(`ideas:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const { data: profileRaw } = await supabase
     .from("profiles")

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import OpenAI from "openai";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -8,6 +9,7 @@ export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`niche-lookup:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const { niche } = await request.json() as { niche?: string };
   if (!niche?.trim()) return NextResponse.json({ error: "niche is required" }, { status: 400 });

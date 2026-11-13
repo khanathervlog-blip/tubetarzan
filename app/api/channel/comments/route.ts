@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/lib/youtube-auth";
 import OpenAI from "openai";
+import { rateLimit, TOO_MANY } from "@/lib/rate-limit";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -9,6 +10,7 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!rateLimit(`comments:${user.id}`, 20, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
   const svc = await createServiceClient();
   const { data: profileRaw } = await svc
