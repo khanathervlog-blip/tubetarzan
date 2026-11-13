@@ -54,6 +54,12 @@
   100% { transform: translateX(-50%); }
 }
 
+/* Lip Sync progress bar shimmer */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Card slide up animation */
 @keyframes slide-up {
   0% { opacity: 0; transform: translateY(20px); }

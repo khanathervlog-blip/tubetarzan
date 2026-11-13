@@ -65,7 +65,43 @@ export default function LipSyncStudio() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [progressPct, setProgressPct] = useState(0);
+  const [etaText, setEtaText] = useState("");
   const cancelRef = useRef(false);
+  const clipDurationsRef = useRef<number[]>([]);
+
+  // Cutting the video runs on a Web Worker (ffmpeg.wasm) that some browsers suspend when the tab is
+  // backgrounded or discarded - warn before the user navigates away or closes the tab mid-job.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (busy || activeRunId) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [busy, activeRunId]);
+
+  /** Rough progress (0-40%) for the in-browser cutting/upload phase, from the status text. */
+  const prepProgress = (msg: string): number | null => {
+    const up = /Uploading clip (\d+) of (\d+)/.exec(msg);
+    if (up) return 32 + (parseInt(up[1], 10) / parseInt(up[2], 10)) * 8;
+    if (/Loading the video tools/.test(msg)) return 5;
+    if (/Downloading the avatar/.test(msg)) return 5;
+    if (/Reading your files/.test(msg)) return 10;
+    if (/Finding natural pauses/.test(msg)) return 15;
+    if (/Cutting the face video|Preparing the face video/.test(msg)) return 20;
+    if (/Optimising the video/.test(msg)) return 26;
+    if (/Prepared \d+ clip/.test(msg)) return 30;
+    if (/Reserving your minutes/.test(msg)) return 32;
+    return null;
+  };
+  const reportStatus = (msg: string) => {
+    setStatus(msg);
+    const pct = prepProgress(msg);
+    if (pct !== null) setProgressPct(pct);
+  };
 
   // One request when the page opens (no polling): allowance + recent runs with download links
   const load = useCallback(async () => {
@@ -144,12 +180,23 @@ export default function LipSyncStudio() {
   /** Lip-syncs the run's unfinished clips one after another. Stops when the free GPU time runs out. */
   const processRun = async (run: { id: string; clips: { id: string; idx: number; status: string; attempts?: number }[] }) => {
     setActiveRunId(run.id);
+    const total = run.clips.length;
+    const alreadyDone = run.clips.filter((c) => c.status === "complete").length;
     const todo = run.clips.filter((c) => c.status !== "complete").sort((a, b) => a.idx - b.idx);
+    clipDurationsRef.current = [];
     for (let i = 0; i < todo.length; i++) {
       if (cancelRef.current) return;
       const c = todo[i];
-      setStatus(`Lip-syncing clip ${c.idx + 1} of ${run.clips.length}… (about 1–3 minutes each)`);
+      const overallDone = alreadyDone + i;
+      setProgressPct(40 + (overallDone / total) * 60);
+      const avgMs = clipDurationsRef.current.length
+        ? clipDurationsRef.current.reduce((a, b) => a + b, 0) / clipDurationsRef.current.length
+        : 120_000;
+      const remaining = total - overallDone;
+      setEtaText(remaining > 1 ? `~${Math.max(1, Math.round((remaining * avgMs) / 60_000))} min left` : "almost done…");
+      setStatus(`Lip-syncing clip ${c.idx + 1} of ${total}… (about 1–3 minutes each)`);
       setRuns((rs) => rs.map((r) => (r.id === run.id ? { ...r, status: "processing", clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: "processing" } : x)) } : r)));
+      const clipStart = Date.now();
       let data: { status: string; error?: string; downloadUrl?: string; canRetry?: boolean };
       try {
         const res = await fetch(`/api/lipsync/clips/${c.id}/process`, { method: "POST" });
@@ -159,6 +206,7 @@ export default function LipSyncStudio() {
       }
       if (data.status === "paused") {
         setStatus("");
+        setEtaText("");
         setError(`${data.error || "Free GPU time is used up for today."} Your finished clips are saved; press Continue later.`);
         break;
       }
@@ -171,11 +219,14 @@ export default function LipSyncStudio() {
           /* keep failure */
         }
       }
+      clipDurationsRef.current.push(Date.now() - clipStart);
       setRuns((rs) => rs.map((r) => (r.id === run.id
         ? { ...r, clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: data.status === "complete" ? "complete" : "failed", downloadUrl: data.downloadUrl || null, error: data.error || null } : x)) }
         : r)));
     }
+    setProgressPct(100);
     setStatus("");
+    setEtaText("");
     setActiveRunId(null);
     await load();
   };
@@ -183,10 +234,12 @@ export default function LipSyncStudio() {
   const start = async () => {
     if (!access) return;
     setError("");
+    setProgressPct(0);
+    setEtaText("");
     let video: File | Blob | null = videoFile;
     if (!video && selectedAvatar) {
       try {
-        setStatus("Downloading the avatar video…");
+        reportStatus("Downloading the avatar video…");
         video = await (await fetch(selectedAvatar.videoUrl)).blob();
       } catch {
         setError("Couldn't load that avatar. Please upload your own face video instead.");
@@ -204,9 +257,9 @@ export default function LipSyncStudio() {
     let job: Awaited<ReturnType<typeof import("@/lib/lipsync-split").prepareLipsyncJob>> | null = null;
     try {
       const { prepareLipsyncJob } = await import("@/lib/lipsync-split");
-      job = await prepareLipsyncJob(video, audioFile, access.maxRunSeconds, setStatus);
+      job = await prepareLipsyncJob(video, audioFile, access.maxRunSeconds, reportStatus);
 
-      setStatus(`Prepared ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"}. Reserving your minutes…`);
+      reportStatus(`Prepared ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"}. Reserving your minutes…`);
       const res = await fetch("/api/lipsync/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -220,7 +273,7 @@ export default function LipSyncStudio() {
       for (let i = 0; i < created.clips.length; i++) {
         if (cancelRef.current) return;
         const c = created.clips[i] as { idx: number; videoPath: string; audioPath: string };
-        setStatus(`Uploading clip ${i + 1} of ${created.clips.length}…`);
+        reportStatus(`Uploading clip ${i + 1} of ${created.clips.length}…`);
         for (const [path, kind] of [[c.videoPath, "video"], [c.audioPath, "audio"]] as const) {
           if (uploaded.has(path)) continue;
           const bytes = kind === "video" ? await job.video(c.idx) : await job.audio(c.idx);
@@ -247,8 +300,15 @@ export default function LipSyncStudio() {
       const run = (fresh.runs || []).find((r: Run) => r.id === created.runId);
       if (run) await processRun(run);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      console.error("Lip Sync failed:", e);
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Something interrupted the video cutting - this usually happens when the tab is minimised, put to sleep, or switched away from for too long. Keep this tab open and in the foreground, then try again."
+      );
       setStatus("");
+      setProgressPct(0);
+      setEtaText("");
     } finally {
       await job?.cleanup().catch(() => {});
       setBusy(false);
@@ -408,9 +468,24 @@ export default function LipSyncStudio() {
           {busy ? "Working…" : "Cut into clips & lip-sync"}
         </button>
         {status && <p className="text-gray-400 text-sm mt-3 flex items-center gap-2"><Loader2 className="animate-spin" size={14} /> {status}</p>}
+        {(busy || activeRunId) && (
+          <div className="mt-3">
+            <div className="h-3 rounded-full bg-black/60 border border-gray-800 overflow-hidden shadow-[inset_0_2px_4px_rgba(0,0,0,0.6)]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#FFD200] via-[#FFE680] to-[#FFD200] bg-[length:200%_100%] animate-[shimmer_1.6s_linear_infinite] shadow-[0_0_10px_rgba(255,210,0,0.6)] transition-[width] duration-500 ease-out"
+                style={{ width: `${Math.max(3, Math.min(100, progressPct))}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-gray-500 text-xs">{Math.round(progressPct)}%</span>
+              {etaText && <span className="text-gray-500 text-xs">{etaText}</span>}
+            </div>
+          </div>
+        )}
         <p className="text-gray-600 text-xs mt-2">
-          Cutting happens in your browser, so keep this tab open until all clips are done. Finished clips stay
-          available here for 7 days.
+          Cutting happens in your browser using your device&apos;s processing power, so keep this tab open and
+          in the foreground until all clips are done - switching away or letting the tab sleep can interrupt it.
+          Finished clips stay available here for 7 days.
         </p>
       </div>
 
