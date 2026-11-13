@@ -24,6 +24,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "No YouTube channel connected" }, { status: 400 });
   }
 
+  // SECURITY/COST: this calls OpenAI on every request - free plan never had a cap here (bug), only paid plans may use it
+  const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(profile?.email || user.email || "");
+  if ((profile?.subscription_plan || "free") === "free" && !isAdmin) {
+    return NextResponse.json({ error: "Comments Intelligence requires Creator plan or above", upgradeRequired: true }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const videoId = searchParams.get("videoId");
 

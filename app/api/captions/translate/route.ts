@@ -9,6 +9,15 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!rateLimit(`captions-translate:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
+  // SECURITY/COST: this calls OpenAI on every request - free plan never had a cap here (bug), only paid plans may use it
+  const { data: profileRaw } = await supabase.from("profiles").select("subscription_plan, email").eq("id", user.id).single();
+  const profile = profileRaw as { subscription_plan: string; email: string } | null;
+  const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(profile?.email || user.email || "");
+  const plan = profile?.subscription_plan || "free";
+  if (plan === "free" && !isAdmin) {
+    return NextResponse.json({ error: "Caption translation requires Creator plan or above", upgradeRequired: true }, { status: 403 });
+  }
+
   const { words, targetLanguage = "English" } = await request.json();
   if (!words || !Array.isArray(words)) return NextResponse.json({ error: "words array required" }, { status: 400 });
 

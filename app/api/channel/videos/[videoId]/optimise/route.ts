@@ -15,6 +15,14 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!rateLimit(`optimise:${user.id}`, 120, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
+  // SECURITY/COST: this calls OpenAI on every request - free plan never had a cap here (bug), only paid plans may use it
+  const { data: callerProfile } = await supabase.from("profiles").select("subscription_plan, email").eq("id", user.id).single();
+  const caller = callerProfile as { subscription_plan: string; email: string } | null;
+  const callerIsAdmin = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(caller?.email || user.email || "");
+  if ((caller?.subscription_plan || "free") === "free" && !callerIsAdmin) {
+    return NextResponse.json({ error: "Title/description optimisation requires Creator plan or above", upgradeRequired: true }, { status: 403 });
+  }
+
   const body = await request.json() as { channelId?: string };
   const { channelId } = body;
   if (!channelId) return NextResponse.json({ error: "channelId required" }, { status: 400 });

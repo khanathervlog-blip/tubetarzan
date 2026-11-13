@@ -29,6 +29,10 @@ export async function POST(
 
   const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map(e => e.trim()).includes(user.email || "");
   const plan = profile?.subscription_plan || "free";
+  // SECURITY/COST: this calls OpenAI on every request - free plan never had a cap here (bug), only paid plans may use it
+  if (plan === "free" && !isAdmin) {
+    return NextResponse.json({ error: "Competitor analysis requires Creator plan or above", upgradeRequired: true }, { status: 403 });
+  }
   const apiKey = (isAdmin || plan === "pro" || plan === "agency")
     ? (process.env.YOUTUBE_API_KEY || profile?.youtube_api_key)
     : profile?.youtube_api_key;

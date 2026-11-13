@@ -13,6 +13,14 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!rateLimit(`policy:${user.id}`, 30, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
+  // SECURITY/COST: this calls OpenAI on every request - free plan never had a cap here (bug), only paid plans may use it
+  const { data: callerProfile } = await supabase.from("profiles").select("subscription_plan, email").eq("id", user.id).single();
+  const caller = callerProfile as { subscription_plan: string; email: string } | null;
+  const callerIsAdmin = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(caller?.email || user.email || "");
+  if ((caller?.subscription_plan || "free") === "free" && !callerIsAdmin) {
+    return NextResponse.json({ error: "Policy check requires Creator plan or above", upgradeRequired: true }, { status: 403 });
+  }
+
   const { title, description, scriptExcerpt } = await request.json();
 
   if (!title && !description && !scriptExcerpt) {
