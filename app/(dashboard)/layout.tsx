@@ -59,7 +59,6 @@ const NAV_SECTIONS = [
       { href: "/dashboard/studio/transcript", label: "Transcript Fetcher", icon: AlignLeft },
       { href: "/dashboard/studio/audio", label: "Audio Studio", icon: Mic },
       { href: "/dashboard/studio/broll", label: "B-roll Studio", icon: Film },
-      { href: "/dashboard/studio/shorts", label: "Shorts Factory", icon: Zap },
       { href: "/dashboard/studio/batch", label: "Batch Content", icon: LayoutGrid },
       { href: "/dashboard/studio/thumbnail", label: "Thumbnail Generator", icon: ImageIcon },
       { href: "/dashboard/studio/publish", label: "Publish & Schedule", icon: Calendar },

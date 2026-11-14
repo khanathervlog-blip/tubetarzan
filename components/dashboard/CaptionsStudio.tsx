@@ -1,261 +1,129 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { startPoller } from "@/lib/poll";
-import { createClient } from "@/lib/supabase/client";
-import { Upload, Subtitles, Play, Download, Loader2, CheckCircle2, AlertCircle, Languages, Palette, Sliders, Flame, RefreshCw } from "lucide-react";
+import { Upload, Subtitles, Download, Loader2, CheckCircle2, AlertCircle, Languages, Info } from "lucide-react";
+import { groupIntoLines, toSrt, toVtt, toTxt, type CaptionLine, type CaptionWord } from "@/lib/captions-format";
 
-interface Word {
-  word: string;
-  start: number;
-  end: number;
-}
-
-interface CaptionStyle {
-  key: string;
-  label: string;
-  desc: string;
-  preview: string;
-}
-
-const CAPTION_STYLES: CaptionStyle[] = [
-  { key: "classic_white", label: "Classic White", desc: "Clean white text, black outline", preview: "bg-black text-white" },
-  { key: "yellow_pop", label: "Yellow Pop", desc: "Bold yellow, high contrast", preview: "bg-black text-yellow-400" },
-  { key: "word_highlight", label: "Word Highlight", desc: "Each word lights up as spoken", preview: "bg-black text-gray-400" },
-  { key: "karaoke", label: "Karaoke", desc: "Word-by-word sweep effect", preview: "bg-black text-white" },
-  { key: "netflix", label: "Netflix Style", desc: "Bottom-aligned, semi-transparent bg", preview: "bg-gray-900/80 text-white" },
+const LANGUAGES: [string, string][] = [
+  ["Auto Detect", ""], ["English", "english"], ["Urdu", "urdu"], ["Hindi", "hindi"], ["Arabic", "arabic"], ["Spanish", "spanish"],
+  ["French", "french"], ["German", "german"], ["Portuguese", "portuguese"], ["Italian", "italian"], ["Turkish", "turkish"],
+  ["Indonesian", "indonesian"], ["Japanese", "japanese"], ["Korean", "korean"], ["Chinese", "chinese"],
 ];
 
-const LANGUAGES = ["Auto Detect", "English", "Spanish", "French", "German", "Portuguese", "Italian", "Japanese", "Korean", "Chinese", "Arabic", "Hindi"];
+const MAX_FILE_BYTES = 300 * 1024 * 1024;
+const MAX_MINUTES = 10;
 
-type Step = "upload" | "generate" | "style" | "customize" | "burn";
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 export default function CaptionsStudio() {
-  const [step, setStep] = useState<Step>("upload");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [videoPreview, setVideoPreview] = useState("");
-  const [language, setLanguage] = useState("Auto Detect");
-  const [jobId, setJobId] = useState("");
-  const [words, setWords] = useState<Word[]>([]);
-  const [srt, setSrt] = useState(""); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [languageDetected, setLanguageDetected] = useState("");
-  const [wordCount, setWordCount] = useState(0);
-  const [selectedStyle, setSelectedStyle] = useState("classic_white");
-  const [fontSize, setFontSize] = useState(24);
-  const [position, setPosition] = useState("bottom");
-  const [primaryColor, setPrimaryColor] = useState("#FFFFFF");
-  const [highlightColor, setHighlightColor] = useState("#FFD200");
-  const [currentTime, setCurrentTime] = useState(0);
-  const [translating, setTranslating] = useState(false);
-  const [targetLang, setTargetLang] = useState("Spanish");
-  const [burning, setBurning] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [burnStatus, setBurnStatus] = useState<"idle" | "burning" | "complete" | "failed">("idle");
-  const [outputUrl, setOutputUrl] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [language, setLanguage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const [pct, setPct] = useState(0);
+  const [lines, setLines] = useState<CaptionLine[]>([]);
   const [error, setError] = useState("");
+  const workerRef = useRef<Worker | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
-  const pollRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => { workerRef.current?.terminate(); }, []);
 
-  useEffect(() => {
-    return () => { pollRef.current?.(); pollRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onTime = () => setCurrentTime(video.currentTime);
-    video.addEventListener("timeupdate", onTime);
-    return () => video.removeEventListener("timeupdate", onTime);
-  }, [step]);
-
-  // The preview uses a local blob: link, but the transcription server needs a real URL, so the video is first
-  // uploaded to private storage and videoUrl becomes a signed link.
-  const handleVideoFile = async (file: File) => {
+  const pick = (f: File) => {
     setError("");
-    setVideoUrl("");
-    setVideoPreview(URL.createObjectURL(file));
-    setUploading(true);
-    try {
-      const res = await fetch("/api/captions/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, size: file.size }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not prepare the upload.");
-      const { error: upErr } = await createClient()
-        .storage.from("captions")
-        .uploadToSignedUrl(data.path, data.token, file, { contentType: file.type || "video/mp4" });
-      if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
-      const readRes = await fetch("/api/captions/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ readPath: data.path }),
-      });
-      const readData = await readRes.json();
-      if (!readRes.ok) throw new Error(readData.error || "Could not prepare the video link.");
-      setVideoUrl(readData.videoUrl);
-    } catch (e) {
-      setVideoPreview("");
-      setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const currentCaption = (): string => {
-    if (!words.length) return "";
-    const active = words.filter((w) => w.start <= currentTime && w.end >= currentTime);
-    if (active.length) return active.map((w) => w.word).join(" ");
-    // Show nearest upcoming word
-    const upcoming = words.find((w) => w.start > currentTime);
-    if (upcoming && upcoming.start - currentTime < 0.5) return upcoming.word;
-    return "";
-  };
-
-  const generateCaptions = async () => {
-    setError("");
-    setGenerating(true);
-    try {
-      const res = await fetch("/api/captions/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          videoUrl,
-          language: language === "Auto Detect" ? undefined : language,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.error === "monthly_limit_reached") {
-          setError(`Monthly limit reached (${data.used}/${data.limit} jobs used).`);
-        } else {
-          setError(data.error || "Transcription failed.");
-        }
-        return;
-      }
-      setJobId(data.jobId);
-      setWords(data.words || []);
-      setSrt(data.srt || "");
-      setLanguageDetected(data.languageDetected || language);
-      setWordCount(data.wordCount || 0);
-      setStep("style");
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const translateCaptions = async () => {
-    setTranslating(true);
-    try {
-      const res = await fetch("/api/captions/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words, targetLanguage: targetLang }),
-      });
-      const data = await res.json();
-      if (res.ok && data.words) setWords(data.words);
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-  const exportCaptions = async (format: "srt" | "vtt") => {
-    const res = await fetch("/api/captions/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ words, format }),
-    });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `captions.${format}`;
-    a.click();
-  };
-
-  const burnCaptions = async () => {
-    setBurning(true);
-    setBurnStatus("burning");
-    setStep("burn");
-
-    const res = await fetch("/api/captions/burn", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobId,
-        videoUrl,
-        words,
-        style: selectedStyle,
-        fontSize,
-        position,
-        primaryColor,
-        highlightColor,
-      }),
-    });
-
-    if (!res.ok) {
-      setBurnStatus("failed");
-      setBurning(false);
+    setLines([]);
+    if (f.size > MAX_FILE_BYTES) {
+      setError("This file is larger than 300 MB. Export it smaller (720p) and try again.");
       return;
     }
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  };
 
-    // Poll for completion
-    pollRef.current?.();
-    pollRef.current = startPoller(
-      async () => {
-        const statusRes = await fetch(`/api/captions/status/${jobId}`);
-        if (!statusRes.ok) throw new Error("status check failed");
-        const data = await statusRes.json();
-        if (data.status === "complete" && data.output_url) {
-          setBurnStatus("complete");
-          setOutputUrl(data.output_url);
-          setBurning(false);
-          return true;
-        } else if (data.status === "failed") {
-          setBurnStatus("failed");
-          setBurning(false);
-          return true;
-        }
-        return false;
-      },
-      {
-        intervalMs: 10_000,
-        maxDurationMs: 15 * 60_000,
-        onTimeout: () => { setBurnStatus("failed"); setBurning(false); },
+  /** Decodes the audio track to 16 kHz mono, which is what Whisper expects. */
+  const decodeAudio = async (f: File): Promise<Float32Array> => {
+    const ctx = new AudioContext({ sampleRate: 16000 });
+    try {
+      const buf = await ctx.decodeAudioData(await f.arrayBuffer());
+      if (buf.duration > MAX_MINUTES * 60) throw new Error(`Please use a video of ${MAX_MINUTES} minutes or less (this one is ${fmt(buf.duration)}).`);
+      const ch = buf.getChannelData(0);
+      if (buf.numberOfChannels === 1) return ch.slice();
+      const mix = new Float32Array(ch.length);
+      for (let c = 0; c < buf.numberOfChannels; c++) {
+        const d = buf.getChannelData(c);
+        for (let i = 0; i < d.length; i++) mix[i] += d[i] / buf.numberOfChannels;
       }
-    );
+      return mix;
+    } finally {
+      ctx.close().catch(() => {});
+    }
   };
 
-  const reset = () => {
-    pollRef.current?.();
-    pollRef.current = null;
-    setStep("upload");
-    setVideoUrl("");
-    setVideoPreview("");
-    setWords([]);
-    setSrt("");
-    setJobId("");
-    setWordCount(0);
-    setLanguageDetected("");
-    setOutputUrl("");
-    setBurnStatus("idle");
+  const transcribe = async () => {
+    if (!file) return;
     setError("");
+    setLines([]);
+    setBusy(true);
+    setPct(0);
+    try {
+      setStatus("Reading the audio from your video…");
+      const audio = await decodeAudio(file);
+      workerRef.current?.terminate();
+      const worker = new Worker(new URL("../../lib/whisper.worker.ts", import.meta.url), { type: "module" });
+      workerRef.current = worker;
+      const words: CaptionWord[] = await new Promise((resolve, reject) => {
+        worker.onmessage = (e: MessageEvent<{ type: string; pct?: number; words?: CaptionWord[]; message?: string }>) => {
+          const m = e.data;
+          if (m.type === "download") {
+            setStatus("Downloading the speech model (first time only, ~80 MB)…");
+            setPct(m.pct || 0);
+          } else if (m.type === "transcribing") {
+            setStatus("Transcribing in your browser… this can take a few minutes, keep this tab open.");
+            setPct(100);
+          } else if (m.type === "done") resolve(m.words || []);
+          else if (m.type === "error") reject(new Error(m.message || "Transcription failed."));
+        };
+        worker.onerror = (e) => reject(new Error(e.message || "The transcription worker crashed."));
+        worker.postMessage({ audio, language: language || undefined }, [audio.buffer]);
+      });
+      if (!words.length) throw new Error("No speech was found in this video.");
+      setLines(groupIntoLines(words));
+      setStatus("");
+    } catch (e) {
+      console.error("Captions failed:", e);
+      setError(e instanceof Error ? e.message : "Transcription failed.");
+      setStatus("");
+    } finally {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+      setBusy(false);
+    }
   };
 
-  const stepOrder: Step[] = ["upload", "generate", "style", "customize", "burn"];
-  const stepLabels = ["Upload", "Transcribe", "Style", "Customize", "Result"];
+  const download = (kind: "srt" | "vtt" | "txt") => {
+    const body = kind === "srt" ? toSrt(lines) : kind === "vtt" ? toVtt(lines) : toTxt(lines);
+    const url = URL.createObjectURL(new Blob([body], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `captions.${kind}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const editLine = (i: number, text: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, text } : l)));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Auto Captions Studio</h1>
-        <p className="text-gray-400 text-sm mt-1">AI-powered captions with 5 styles, translation, and burned-in export</p>
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2"><Subtitles size={22} /> Auto Captions</h1>
+        <p className="text-gray-400 text-sm mt-1">
+          Get timed captions from your video&apos;s voice. Download SRT / VTT and import them in CapCut, Premiere or YouTube.
+        </p>
+      </div>
+
+      <div className="bg-[#111111] border border-[#1E1E1E] rounded-lg p-4 text-sm text-gray-300 flex gap-3">
+        <Info className="text-[#FFD200] shrink-0 mt-0.5" size={16} />
+        <p>Everything runs inside your browser - your video is never uploaded and it&apos;s free. Keep this tab open while it works.</p>
       </div>
 
       {error && (
@@ -265,287 +133,74 @@ export default function CaptionsStudio() {
         </div>
       )}
 
-      {/* Steps */}
-      <div className="flex items-center gap-2 text-sm">
-        {stepOrder.map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${step === s ? "bg-red-600 text-white" : (stepOrder.indexOf(step) > i ? "bg-green-600 text-white" : "bg-gray-700 text-gray-400")}`}>
-              {stepOrder.indexOf(step) > i ? "✓" : i + 1}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+        <h2 className="text-white font-semibold flex items-center gap-2"><Upload size={18} /> 1. Your video (or audio)</h2>
+        <div
+          className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-[#FFD200] transition-colors"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pick(f); }}
+        >
+          <Upload className="mx-auto text-gray-500 mb-2" size={32} />
+          <p className="text-gray-400 text-sm">{file ? file.name : "Drop a video here or click to choose"}</p>
+          <p className="text-gray-600 text-xs mt-1">MP4, MOV, WebM, MP3, WAV · up to {MAX_MINUTES} minutes · max 300 MB</p>
+          <input ref={inputRef} type="file" accept="video/*,audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); }} />
+        </div>
+        {preview && file?.type.startsWith("video/") && <video src={preview} controls className="w-full max-h-48 rounded-lg bg-black" />}
+
+        <h2 className="text-white font-semibold flex items-center gap-2 pt-2"><Languages size={18} /> 2. Language</h2>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm"
+        >
+          {LANGUAGES.map(([label, value]) => <option key={label} value={value}>{label}</option>)}
+        </select>
+        <p className="text-gray-600 text-xs">Pick the spoken language for the best accuracy (Auto Detect works for clear speech).</p>
+
+        <button
+          onClick={transcribe}
+          disabled={!file || busy}
+          className="w-full bg-[#FFD200] hover:bg-[#FFE033] disabled:opacity-50 text-[#080808] font-bold py-3 rounded-xl flex items-center justify-center gap-2"
+        >
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <Subtitles size={18} />}
+          {busy ? "Working…" : "3. Generate captions"}
+        </button>
+        {busy && (
+          <div>
+            <p className="text-gray-400 text-sm flex items-center gap-2"><Loader2 className="animate-spin" size={14} /> {status}</p>
+            <div className="h-2 mt-2 rounded-full bg-black/60 border border-gray-800 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-[#FFD200] to-[#FFE680] transition-[width] duration-300" style={{ width: `${Math.max(4, pct)}%` }} />
             </div>
-            <span className={step === s ? "text-white" : "text-gray-500"}>{stepLabels[i]}</span>
-            {i < stepOrder.length - 1 && <span className="text-gray-700">—</span>}
           </div>
-        ))}
+        )}
       </div>
 
-      {/* Step 1: Upload */}
-      {step === "upload" && (
-        <div className="space-y-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-4 flex items-center gap-2"><Upload size={18} /> Upload Video</h2>
-            <div
-              className="border-2 border-dashed border-gray-700 rounded-lg p-10 text-center cursor-pointer hover:border-red-600 transition-colors"
-              onClick={() => videoInputRef.current?.click()}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleVideoFile(f); }}
-            >
-              <Upload className="mx-auto text-gray-500 mb-2" size={36} />
-              <p className="text-gray-400 text-sm">Drop video here or click to upload</p>
-              <p className="text-gray-600 text-xs mt-1">MP4, MOV, WebM · max 45 MB (export at 720p). Free plan: 3 videos per month</p>
-              <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); }} />
-            </div>
-            {videoPreview && (
-              <div className="mt-4">
-                <video ref={videoRef} src={videoPreview} controls className="w-full max-h-48 rounded-lg bg-black" />
-                {uploading ? (
-                  <p className="text-gray-400 text-xs mt-1 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Uploading…</p>
-                ) : videoUrl ? (
-                  <p className="text-green-400 text-xs mt-1 flex items-center gap-1"><CheckCircle2 size={12} /> Video ready</p>
-                ) : null}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-3 flex items-center gap-2"><Languages size={18} /> Language</h2>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm"
-            >
-              {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <p className="text-gray-600 text-xs mt-1">Auto Detect works well for clear speech in major languages</p>
-          </div>
-
-          <button
-            onClick={() => setStep("generate")}
-            disabled={!videoUrl || uploading}
-            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
-          >
-            Next: Generate Captions
-          </button>
-        </div>
-      )}
-
-      {/* Step 2: Generate */}
-      {step === "generate" && (
-        <div className="space-y-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-            <Subtitles className="text-red-500 mx-auto mb-3" size={40} />
-            <h2 className="text-white text-lg font-semibold mb-2">Ready to Transcribe</h2>
-            <p className="text-gray-400 text-sm mb-2">Language: <span className="text-white">{language}</span></p>
-            <p className="text-gray-500 text-xs">faster-whisper AI will transcribe your video with word-level timestamps</p>
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={() => setStep("upload")} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition-colors">
-              Back
-            </button>
-            <button
-              onClick={generateCaptions}
-              disabled={generating}
-              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-            >
-              {generating ? <><Loader2 className="animate-spin" size={18} /> Transcribing...</> : "Generate Captions"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Style picker */}
-      {step === "style" && (
-        <div className="space-y-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold flex items-center gap-2"><Palette size={18} /> Choose Style</h2>
-              <div className="text-right">
-                <span className="text-green-400 text-xs">{wordCount} words transcribed</span>
-                {languageDetected && <p className="text-gray-500 text-xs">Detected: {languageDetected}</p>}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-              {CAPTION_STYLES.map((style) => (
-                <button
-                  key={style.key}
-                  onClick={() => setSelectedStyle(style.key)}
-                  className={`p-4 rounded-xl border-2 text-left flex items-center justify-between transition-all ${selectedStyle === style.key ? "border-red-500 bg-red-600/10" : "border-gray-700 hover:border-gray-500"}`}
-                >
-                  <div>
-                    <p className={`font-semibold text-sm ${selectedStyle === style.key ? "text-red-400" : "text-white"}`}>{style.label}</p>
-                    <p className="text-gray-500 text-xs mt-0.5">{style.desc}</p>
-                  </div>
-                  <div className={`text-xs px-3 py-1.5 rounded ${style.preview} font-bold`}>
-                    {style.key === "word_highlight" ? <span><span className="text-white">Hello</span> <span className="text-yellow-400">World</span></span> : "Sample Text"}
-                  </div>
-                  {selectedStyle === style.key && <CheckCircle2 className="text-red-400 ml-2 shrink-0" size={18} />}
+      {lines.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-white font-semibold flex items-center gap-2"><CheckCircle2 size={18} className="text-green-400" /> {lines.length} caption lines</h2>
+            <div className="flex gap-2">
+              {(["srt", "vtt", "txt"] as const).map((k) => (
+                <button key={k} onClick={() => download(k)} className="text-sm px-3 py-1.5 rounded-lg bg-[#FFD200] text-[#080808] font-semibold flex items-center gap-1">
+                  <Download size={14} /> {k.toUpperCase()}
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Translation */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-3 flex items-center gap-2"><Languages size={18} /> Translate Captions (optional)</h2>
-            <div className="flex gap-3">
-              <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
-                {LANGUAGES.filter((l) => l !== "Auto Detect").map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-              <button onClick={translateCaptions} disabled={translating} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors disabled:opacity-50">
-                {translating ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />} Translate
-              </button>
-            </div>
-            <p className="text-gray-600 text-xs mt-2">Timestamps are preserved after translation</p>
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={() => setStep("generate")} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition-colors">
-              Back
-            </button>
-            <button onClick={() => setStep("customize")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-colors">
-              Next: Customize
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Customize + CSS Preview */}
-      {step === "customize" && (
-        <div className="space-y-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-4 flex items-center gap-2"><Sliders size={18} /> Customize</h2>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="text-gray-400 text-xs block mb-1">Font Size</label>
-                <div className="flex items-center gap-3">
-                  <input type="range" min={16} max={48} value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} className="flex-1 accent-red-600" />
-                  <span className="text-white text-sm w-8">{fontSize}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs block mb-1">Position</label>
-                <select value={position} onChange={(e) => setPosition(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
-                  <option value="bottom">Bottom</option>
-                  <option value="top">Top</option>
-                  <option value="middle">Middle</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs block mb-1">Text Color</label>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-10 h-8 rounded cursor-pointer bg-transparent border-0" />
-                  <span className="text-gray-400 text-xs">{primaryColor}</span>
-                </div>
-              </div>
-              <div>
-                <label className="text-gray-400 text-xs block mb-1">Highlight Color</label>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={highlightColor} onChange={(e) => setHighlightColor(e.target.value)} className="w-10 h-8 rounded cursor-pointer bg-transparent border-0" />
-                  <span className="text-gray-400 text-xs">{highlightColor}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* CSS Preview overlay */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-3 flex items-center gap-2"><Play size={18} /> Live Preview</h2>
-            <div className="relative bg-black rounded-lg overflow-hidden">
-              <video
-                ref={videoRef}
-                src={videoPreview}
-                controls
-                className="w-full"
-                onTimeUpdate={(e) => setCurrentTime((e.target as HTMLVideoElement).currentTime)}
-              />
-              {currentCaption() && (
-                <div
-                  className={`absolute left-0 right-0 flex justify-center pointer-events-none ${position === "top" ? "top-4" : position === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-8"}`}
-                >
-                  <span
-                    style={{
-                      fontSize: `${fontSize * 0.6}px`,
-                      color: primaryColor,
-                      backgroundColor: selectedStyle === "netflix" ? "rgba(0,0,0,0.75)" : "transparent",
-                      textShadow: selectedStyle === "netflix" ? "none" : "2px 2px 4px #000, -2px -2px 4px #000",
-                      padding: selectedStyle === "netflix" ? "4px 12px" : "0",
-                      borderRadius: "4px",
-                      maxWidth: "80%",
-                      textAlign: "center",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {currentCaption()}
-                  </span>
-                </div>
-              )}
-            </div>
-            <p className="text-gray-600 text-xs mt-2 text-center">Play the video to preview captions in real-time (CSS preview — exact rendering varies per style)</p>
-          </div>
-
-          {/* Export options */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center justify-between">
-            <span className="text-gray-400 text-sm">Export captions file</span>
-            <div className="flex gap-2">
-              <button onClick={() => exportCaptions("srt")} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1 transition-colors">
-                <Download size={12} /> SRT
-              </button>
-              <button onClick={() => exportCaptions("vtt")} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded flex items-center gap-1 transition-colors">
-                <Download size={12} /> VTT
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button onClick={() => setStep("style")} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition-colors">
-              Back
-            </button>
-            <button
-              onClick={burnCaptions}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
-            >
-              <Flame size={18} /> Burn Captions
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: Burn result */}
-      {step === "burn" && (
-        <div className="space-y-4">
-          {burnStatus === "burning" && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-12 text-center">
-              <Loader2 className="animate-spin text-red-500 mx-auto mb-4" size={48} />
-              <h2 className="text-white text-xl font-semibold mb-2">Burning Captions</h2>
-              <p className="text-gray-400 text-sm">FFmpeg is rendering captions onto your video. This may take a few minutes.</p>
-            </div>
-          )}
-          {burnStatus === "complete" && outputUrl && (
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <CheckCircle2 className="text-green-400" size={20} />
-                <h2 className="text-white font-semibold">Captions Burned Successfully</h2>
-              </div>
-              <video src={outputUrl} controls className="w-full rounded-lg bg-black mb-4" />
-              <a
-                href={outputUrl}
-                download="captioned-video.mp4"
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl text-center flex items-center justify-center gap-2 transition-colors"
-              >
-                <Download size={18} /> Download Captioned Video
-              </a>
-            </div>
-          )}
-          {burnStatus === "failed" && (
-            <div className="bg-red-900/30 border border-red-700 rounded-xl p-8 text-center">
-              <AlertCircle className="text-red-400 mx-auto mb-3" size={32} />
-              <h2 className="text-white font-semibold mb-2">Burn Failed</h2>
-              <p className="text-gray-400 text-sm mb-4">Something went wrong. You can still export SRT/VTT above.</p>
-            </div>
-          )}
-          <button onClick={reset} className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition-colors">
-            Start Over
-          </button>
+          <p className="text-gray-500 text-xs">Fix any mistakes below before downloading.</p>
+          <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
+            {lines.map((l, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="text-gray-600 text-xs font-mono w-20 shrink-0 pt-2">{fmt(l.start)}–{fmt(l.end)}</span>
+                <input
+                  value={l.text}
+                  onChange={(e) => editLine(i, e.target.value)}
+                  className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm"
+                />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

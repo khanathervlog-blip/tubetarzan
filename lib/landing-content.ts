@@ -70,7 +70,6 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { name: "Script Writer", text: "Full scripts in your style" },
       { name: "Thumbnail Generator", text: "AI thumbnail concepts" },
       { name: "Voiceover & B-roll", text: "AI voice plus free stock footage" },
-      { name: "Shorts Factory", text: "Vertical Shorts from one idea" },
       { name: "Auto Captions", text: "Word-by-word captions in 5 styles" },
       { name: "Transcripts", text: "Any video's transcript in seconds" },
       { name: "Publish & Schedule", text: "Plan uploads on a calendar" },

@@ -358,7 +358,7 @@ async function step7_generateCaptions(
 ): Promise<string | null> {
   await updateJob(jobId, { current_step: "Step 7/9: Burning captions...", progress_percent: 72 });
 
-  const ffmpegUrl = process.env.FFMPEG_SERVICE_URL;
+  const ffmpegUrl: string | undefined = undefined; // Railway FFmpeg service was retired - the base video is the final video
   if (!ffmpegUrl) {
     await updateJob(jobId, { progress_percent: 78 });
     return null;

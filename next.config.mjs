@@ -7,13 +7,13 @@
 //  - vercel.live: Vercel's preview toolbar (preview deployments only)
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://unpkg.com https://vercel.live",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://unpkg.com https://cdn.jsdelivr.net https://vercel.live",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",
   "font-src 'self' data:",
   // blob: - ffmpeg.wasm (Lip Sync) fetches its video file and wasm core through blob: URLs
-  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://unpkg.com https://videos.pexels.com https://*.pexels.com https://vercel.live wss://ws-us3.pusher.com",
+  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://unpkg.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://videos.pexels.com https://*.pexels.com https://vercel.live wss://ws-us3.pusher.com",
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://vercel.live",
   "worker-src 'self' blob:",
   "object-src 'none'",
