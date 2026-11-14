@@ -291,4 +291,6 @@ demo = gr.Interface(
 )
 
 if __name__ == "__main__":
-    demo.queue(max_size=20, default_concurrency_limit=1).launch()
+    # 3 clips can lip-sync at the same time (TubeTarzan sends up to 3 at once from its key pool).
+    # If clips start failing with GPU/memory errors, lower this back toward 1.
+    demo.queue(max_size=20, default_concurrency_limit=3).launch()

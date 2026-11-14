@@ -177,54 +177,84 @@ export default function LipSyncStudio() {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  /** Lip-syncs the run's unfinished clips one after another. Stops when the free GPU time runs out. */
+  /** Up to this many clips lip-sync at the same time (matches default_concurrency_limit in hf-space/app.py). */
+  const LIPSYNC_CONCURRENCY = 3;
+
+  /** Lip-syncs the run's unfinished clips, several at a time. Stops starting new ones when the free GPU time runs out. */
   const processRun = async (run: { id: string; clips: { id: string; idx: number; status: string; attempts?: number }[] }) => {
     setActiveRunId(run.id);
     const total = run.clips.length;
-    const alreadyDone = run.clips.filter((c) => c.status === "complete").length;
     const todo = run.clips.filter((c) => c.status !== "complete").sort((a, b) => a.idx - b.idx);
     clipDurationsRef.current = [];
-    for (let i = 0; i < todo.length; i++) {
-      if (cancelRef.current) return;
-      const c = todo[i];
-      const overallDone = alreadyDone + i;
-      setProgressPct(40 + (overallDone / total) * 60);
+    let completedCount = total - todo.length;
+    let nextIdx = 0;
+    let pausedMessage = "";
+    const inFlight = new Set<number>();
+
+    const updateStatus = () => {
+      const working = Array.from(inFlight).map((i) => todo[i].idx + 1).sort((a, b) => a - b);
+      setProgressPct(40 + (completedCount / total) * 60);
       const avgMs = clipDurationsRef.current.length
         ? clipDurationsRef.current.reduce((a, b) => a + b, 0) / clipDurationsRef.current.length
         : 120_000;
-      const remaining = total - overallDone;
-      setEtaText(remaining > 1 ? `~${Math.max(1, Math.round((remaining * avgMs) / 60_000))} min left` : "almost done…");
-      setStatus(`Lip-syncing clip ${c.idx + 1} of ${total}… (about 1–3 minutes each)`);
-      setRuns((rs) => rs.map((r) => (r.id === run.id ? { ...r, status: "processing", clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: "processing" } : x)) } : r)));
-      const clipStart = Date.now();
-      let data: { status: string; error?: string; downloadUrl?: string; canRetry?: boolean };
-      try {
-        const res = await fetch(`/api/lipsync/clips/${c.id}/process`, { method: "POST" });
-        data = await res.json();
-      } catch {
-        data = { status: "failed", error: "Network error", canRetry: true };
-      }
-      if (data.status === "paused") {
-        setStatus("");
-        setEtaText("");
-        setError(`${data.error || "Free GPU time is used up for today."} Your finished clips are saved; press Continue later.`);
-        break;
-      }
-      if (data.status === "failed" && data.canRetry) {
-        // one automatic retry
+      const remaining = Math.max(0, total - completedCount);
+      const parallel = Math.max(1, working.length);
+      setEtaText(remaining > 0 ? `~${Math.max(1, Math.round((remaining * avgMs) / parallel / 60_000))} min left` : "almost done…");
+      setStatus(
+        working.length
+          ? `Lip-syncing clip${working.length > 1 ? "s" : ""} ${working.join(", ")} of ${total} (${completedCount}/${total} done)…`
+          : `${completedCount}/${total} clips done…`
+      );
+    };
+    updateStatus();
+
+    const worker = async () => {
+      while (true) {
+        if (cancelRef.current || pausedMessage) return;
+        const myIdx = nextIdx++;
+        if (myIdx >= todo.length) return;
+        const c = todo[myIdx];
+        inFlight.add(myIdx);
+        updateStatus();
+        setRuns((rs) => rs.map((r) => (r.id === run.id ? { ...r, status: "processing", clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: "processing" } : x)) } : r)));
+        const clipStart = Date.now();
+        let data: { status: string; error?: string; downloadUrl?: string; canRetry?: boolean };
         try {
           const res = await fetch(`/api/lipsync/clips/${c.id}/process`, { method: "POST" });
           data = await res.json();
         } catch {
-          /* keep failure */
+          data = { status: "failed", error: "Network error", canRetry: true };
         }
+        if (data.status === "paused") {
+          pausedMessage = data.error || "Free GPU time is used up for today.";
+          inFlight.delete(myIdx);
+          return;
+        }
+        if (data.status === "failed" && data.canRetry) {
+          try {
+            const res = await fetch(`/api/lipsync/clips/${c.id}/process`, { method: "POST" });
+            data = await res.json();
+          } catch {
+            /* keep failure */
+          }
+        }
+        clipDurationsRef.current.push(Date.now() - clipStart);
+        completedCount++;
+        inFlight.delete(myIdx);
+        updateStatus();
+        setRuns((rs) => rs.map((r) => (r.id === run.id
+          ? { ...r, clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: data.status === "complete" ? "complete" : "failed", downloadUrl: data.downloadUrl || null, error: data.error || null } : x)) }
+          : r)));
       }
-      clipDurationsRef.current.push(Date.now() - clipStart);
-      setRuns((rs) => rs.map((r) => (r.id === run.id
-        ? { ...r, clips: r.clips.map((x) => (x.id === c.id ? { ...x, status: data.status === "complete" ? "complete" : "failed", downloadUrl: data.downloadUrl || null, error: data.error || null } : x)) }
-        : r)));
+    };
+
+    await Promise.all(Array.from({ length: Math.min(LIPSYNC_CONCURRENCY, todo.length) }, worker));
+
+    if (pausedMessage) {
+      setError(`${pausedMessage} Your finished clips are saved; press Continue later.`);
+    } else {
+      setProgressPct(100);
     }
-    setProgressPct(100);
     setStatus("");
     setEtaText("");
     setActiveRunId(null);
