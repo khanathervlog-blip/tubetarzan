@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server";
-import { Film, Send, Clock, Mic, Subtitles } from "lucide-react";
+import { Film, Send, Clock, Subtitles } from "lucide-react";
 
 // Admin data must be fresh on every visit (otherwise it is frozen at build time)
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export default async function ContentPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [rendersRes, postsRes, bulkRes, lipSyncRes, captionRes] = await Promise.allSettled([
+  const [rendersRes, postsRes, bulkRes, captionRes] = await Promise.allSettled([
     svc
       .from("rendered_videos")
       .select("id, render_status, render_progress, created_at, output_url, user_id")
@@ -27,11 +27,6 @@ export default async function ContentPage() {
       .order("created_at", { ascending: false })
       .limit(10),
     svc
-      .from("lipsync_jobs")
-      .select("id, status, quality, started_at, completed_at, error")
-      .gte("started_at", `${today}T00:00:00Z`)
-      .order("started_at", { ascending: false }),
-    svc
       .from("caption_jobs")
       .select("id, status, caption_style, language_detected, created_at, error")
       .gte("created_at", `${today}T00:00:00Z`)
@@ -41,19 +36,7 @@ export default async function ContentPage() {
   const renders = rendersRes.status === "fulfilled" ? (rendersRes.value.data || []) : [];
   const posts = postsRes.status === "fulfilled" ? (postsRes.value.data || []) : [];
   const bulkOps = bulkRes.status === "fulfilled" ? (bulkRes.value.data || []) : [];
-  const lipSyncJobs = lipSyncRes.status === "fulfilled" ? (lipSyncRes.value.data || []) : [];
   const captionJobs = captionRes.status === "fulfilled" ? (captionRes.value.data || []) : [];
-
-  // Lip sync stats
-  const lsComplete = lipSyncJobs.filter((j: { status: string }) => j.status === "complete").length;
-  const lsFailed = lipSyncJobs.filter((j: { status: string }) => j.status === "failed").length;
-  const lsProcessing = lipSyncJobs.filter((j: { status: string }) => j.status === "processing").length;
-  const lsSuccessRate = lipSyncJobs.length > 0 ? Math.round((lsComplete / lipSyncJobs.length) * 100) : 0;
-  const lsByQuality = {
-    fast: lipSyncJobs.filter((j: { quality: string }) => j.quality === "fast").length,
-    balanced: lipSyncJobs.filter((j: { quality: string }) => j.quality === "balanced").length,
-    best: lipSyncJobs.filter((j: { quality: string }) => j.quality === "best").length,
-  };
 
   // Caption stats
   const capComplete = captionJobs.filter((j: { status: string }) => j.status === "complete").length;
@@ -181,53 +164,6 @@ export default async function ContentPage() {
                 </span>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* Lip Sync Monitoring */}
-      <div className="bg-[#111111] border border-[#1E1E1E] rounded-card overflow-hidden mb-6">
-        <div className="px-5 py-3 border-b border-[#1E1E1E] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Mic className="w-4 h-4 text-[#FFD200]" />
-            <p className="text-white text-sm font-semibold">Lip Sync Jobs Today</p>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-[#22C55E]">{lsComplete} complete</span>
-            {lsProcessing > 0 && <span className="text-[#FFD200]">{lsProcessing} processing</span>}
-            {lsFailed > 0 && <span className="text-[#FF3B3B]">{lsFailed} failed</span>}
-          </div>
-        </div>
-        {lipSyncJobs.length === 0 ? (
-          <div className="p-6 text-center text-[#555555] text-sm">No lip sync jobs today</div>
-        ) : (
-          <div className="p-5 space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="bg-[#0D0D0D] border border-[#1E1E1E] rounded-lg p-3 text-center">
-                <p className="text-[#555555] text-xs mb-1">Total Today</p>
-                <p className="text-white font-bold text-xl font-mono-stats">{lipSyncJobs.length}</p>
-              </div>
-              <div className="bg-[#0D0D0D] border border-[#1E1E1E] rounded-lg p-3 text-center">
-                <p className="text-[#555555] text-xs mb-1">Success Rate</p>
-                <p className="font-bold text-xl font-mono-stats" style={{ color: lsSuccessRate >= 80 ? "#22C55E" : lsSuccessRate >= 50 ? "#FFD200" : "#FF3B3B" }}>
-                  {lsSuccessRate}%
-                </p>
-              </div>
-              <div className="bg-[#0D0D0D] border border-[#1E1E1E] rounded-lg p-3 text-center">
-                <p className="text-[#555555] text-xs mb-1">Queue Now</p>
-                <p className="font-bold text-xl font-mono-stats" style={{ color: lsProcessing > 0 ? "#FFD200" : "#555555" }}>{lsProcessing}</p>
-              </div>
-            </div>
-            <div className="flex gap-3 text-xs">
-              <div className="flex-1 bg-[#0D0D0D] border border-[#1E1E1E] rounded-lg p-3">
-                <p className="text-[#555555] mb-2">Model Usage</p>
-                <div className="space-y-1">
-                  <div className="flex justify-between"><span className="text-gray-400">MuseTalk (best)</span><span className="text-white font-mono-stats">{lsByQuality.best}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">MuseTalk (balanced)</span><span className="text-white font-mono-stats">{lsByQuality.balanced}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Wav2Lip (fast)</span><span className="text-white font-mono-stats">{lsByQuality.fast}</span></div>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>

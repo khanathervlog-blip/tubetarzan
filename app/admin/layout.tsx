@@ -21,7 +21,6 @@ import {
   Globe,
   PlayCircle,
   Eye,
-  Clapperboard,
   Search,
 } from "lucide-react";
 
@@ -60,7 +59,6 @@ const NAV_SECTIONS = [
     label: "Platform",
     items: [
       { href: "/admin/api-keys", label: "API Keys", icon: Key },
-      { href: "/admin/lipsync", label: "Lip Sync GPU", icon: Clapperboard },
       { href: "/admin/seo", label: "SEO & Indexing", icon: Search },
       { href: "/admin/cache", label: "Cache Manager", icon: Database },
       { href: "/admin/niche-data", label: "Niche RPM Data", icon: TrendingUp },

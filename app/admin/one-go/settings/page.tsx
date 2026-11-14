@@ -158,7 +158,7 @@ export default function OneGoSettingsPage() {
 
         {/* Avatar */}
         <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-5 space-y-4">
-          <p className="text-white font-semibold text-sm">Avatar Video for Lip Sync</p>
+          <p className="text-white font-semibold text-sm">Avatar / Face Video</p>
           <p className="text-[#555555] text-xs">
             Upload a 60-second face video to your Supabase storage and paste the URL here.
             Record yourself looking at the camera with good lighting. You only do this once.

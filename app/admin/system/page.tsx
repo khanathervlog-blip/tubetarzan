@@ -6,8 +6,6 @@ import { Server, CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw, Cpu } 
 const RAILWAY_SERVICES = [
   { name: "FFmpeg (video assembly)", desc: "Renders, B-roll assembly, video editing" },
   { name: "Pattern Analyzer", desc: "yt-dlp + PySceneDetect for viral pattern detection" },
-  { name: "MuseTalk (lip sync)", desc: "Primary lip sync model — requires GPU (Railway Pro)" },
-  { name: "Wav2Lip (lip sync fallback)", desc: "CPU-capable fallback when GPU unavailable" },
   { name: "faster-whisper (captions)", desc: "Word-level transcription in 96+ languages" },
 ];
 

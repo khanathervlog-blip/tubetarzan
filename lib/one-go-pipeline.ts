@@ -4,7 +4,6 @@
 import OpenAI from "openai";
 import { createServiceClient } from "./supabase/server";
 import { pickBestVideoForOneGo } from "./one-go-picker";
-import { runLipSyncFree } from "./lipsync-free";
 import type { EnrichedVideo, GeneratedIdea } from "@/types/youtube";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -350,39 +349,6 @@ async function step5_selectBroll(
   return brollUrls.slice(0, 6);
 }
 
-// ── Step 6: Lip sync ────────────────────────────────────────────────────────
-
-async function step6_lipSync(
-  jobId: string,
-  faceVideoUrl: string,
-  audioUrl: string
-): Promise<string | null> {
-  await updateJob(jobId, { current_step: "Step 6/9: Running lip sync (GPU)...", progress_percent: 60 });
-
-  if (!process.env.HF_LIPSYNC_SPACE_URL || !(process.env.HF_TOKENS || process.env.HF_TOKEN)) {
-    console.warn("[OneGo] Lip sync skipped — HF_LIPSYNC_SPACE_URL or HF_TOKENS not set");
-    await updateJob(jobId, { progress_percent: 68 });
-    return null;
-  }
-
-  const result = await runLipSyncFree(
-    faceVideoUrl,
-    audioUrl,
-    jobId,
-    "balanced",
-    (status) => console.log(`[OneGo][LipSync] ${status}`)
-  );
-
-  if (result.success && result.outputUrl) {
-    await updateJob(jobId, { lipsync_url: result.outputUrl, progress_percent: 68 });
-    return result.outputUrl;
-  }
-
-  console.warn("[OneGo] Lip sync failed:", result.error);
-  await updateJob(jobId, { progress_percent: 68 });
-  return null;
-}
-
 // ── Step 7: Captions ─────────────────────────────────────────────────────────
 
 async function step7_generateCaptions(
@@ -428,7 +394,7 @@ async function step8_assembleVideo(
 
   const ffmpegUrl = process.env.FFMPEG_SERVICE_URL;
   if (!ffmpegUrl) {
-    // Fallback: use lipsync or base video as final
+    // Fallback: use the base video as final
     const finalUrl = baseVideoUrl;
     await updateJob(jobId, { final_video_url: finalUrl, progress_percent: 90 });
     return finalUrl;
@@ -541,9 +507,9 @@ export async function runOneGoPipeline(
     // Step 5: B-roll
     const brollUrls = await step5_selectBroll(jobId, niche, idea);
 
-    // Step 6: Lip sync
-    const lipsyncUrl = await step6_lipSync(jobId, faceVideoUrl, audioUrl);
-    const videoForCaptions = lipsyncUrl || faceVideoUrl;
+    // Step 6: (lip sync was removed - the face/avatar video is used as is)
+    await updateJob(jobId, { current_step: "Step 6/9: Preparing video...", progress_percent: 68 });
+    const videoForCaptions = faceVideoUrl;
 
     // Step 7: Captions
     const captionedUrl = await step7_generateCaptions(jobId, videoForCaptions, captionStyle);

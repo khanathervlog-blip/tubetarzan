@@ -3,12 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check, Zap, Loader2 } from "lucide-react";
-import { PLAN_PRICES, LIPSYNC_SECONDS_PER_MONTH, annualPerMonth } from "@/lib/plans";
+import { PLAN_PRICES, annualPerMonth } from "@/lib/plans";
 
-// Lip Sync minutes are only advertised once Lip Sync is open to paid plans (NEXT_PUBLIC_LIPSYNC_PAID=true)
-const LIPSYNC_FOR_PAID = process.env.NEXT_PUBLIC_LIPSYNC_PAID === "true";
-const lipsyncMinutes = (plan: string): string[] =>
-  LIPSYNC_FOR_PAID ? [`Lip Sync: ${LIPSYNC_SECONDS_PER_MONTH[plan] / 60} min / month`] : [];
 
 const PLANS = [
   {
@@ -45,7 +41,6 @@ const PLANS = [
       "Tag copy",
       "One-click apply",
       "Packaging studio",
-      ...lipsyncMinutes("creator"),
     ],
   },
   {
@@ -67,7 +62,6 @@ const PLANS = [
       "One-click apply",
       "Packaging studio",
       "Bulk video update",
-      ...lipsyncMinutes("pro"),
     ],
   },
 ];
@@ -86,7 +80,6 @@ const AGENCY_PLAN = {
     "2 team seats",
     "Unlimited competitors",
     "Priority support",
-    ...lipsyncMinutes("agency"),
   ],
 };
 

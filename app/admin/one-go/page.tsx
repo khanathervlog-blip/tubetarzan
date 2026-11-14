@@ -126,7 +126,7 @@ export default function OneGoPage() {
             One Go
           </h1>
           <p className="text-[#555555] text-sm mt-1">
-            Automated YouTube factory — one click to idea, script, audio, lip sync, captions, post.
+            Automated YouTube factory — one click to idea, script, audio, captions, post.
           </p>
         </div>
         <Link
@@ -217,7 +217,7 @@ export default function OneGoPage() {
         <Zap className="w-10 h-10 text-[#FFD200] fill-[#FFD200] mx-auto mb-4" />
         <p className="text-[#555555] text-sm mb-6">
           TubeTarzan will find the best viral idea, write the script, generate audio,<br />
-          lip sync, burn captions, and post — all automatically.
+          burn captions, and post — all automatically.
         </p>
         <button
           onClick={startOneGo}
