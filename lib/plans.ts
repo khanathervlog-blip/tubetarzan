@@ -52,10 +52,10 @@ export const LIPSYNC_SECONDS_PER_MONTH: Record<string, number> = {
  * Override with the LIPSYNC_DAILY_SECONDS_PER_KEY env var once the real GPU time per clip is known
  * (admin → Lip Sync shows the "took" time of each clip).
  */
-export const LIPSYNC_DAILY_SECONDS_PER_KEY = 60;
+export const LIPSYNC_DAILY_SECONDS_PER_KEY = 15;
 
 /** Longest single clip sent to the GPU, and the longest whole video one run may contain. */
-export const LIPSYNC_MAX_CLIP_SECONDS = 60;
+export const LIPSYNC_MAX_CLIP_SECONDS = 10;
 export const LIPSYNC_MAX_RUN_SECONDS = 12 * 60;
 export const LIPSYNC_MAX_RUN_SECONDS_ADMIN = 30 * 60;
 

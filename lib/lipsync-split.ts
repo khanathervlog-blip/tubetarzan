@@ -6,16 +6,17 @@
  *  - Every clip is at most ~50 seconds (hard limit 60) because the free GPU works best with short jobs.
  *  - "split" mode: the face video is as long as the audio -> both are cut at the same points
  *    (video cut on keyframes without re-encoding = fast; audio is cut exactly to match).
- *  - "loop" mode: the face video is 60 s or shorter -> the same face video is used for every clip
+ *  - "loop" mode: the voice is longer than the face video -> the first 10 s of the face video are reused for every clip
  *    (the model loops it) and only the audio is cut.
  */
 
 type FFmpegType = import("@ffmpeg/ffmpeg").FFmpeg;
 
 const CORE_BASE = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
-const TARGET_SECONDS = 50;
-const MIN_SECONDS = 25;
-const HARD_MAX_SECONDS = 60;
+// LatentSync (the GPU engine) is slow and heavy: clips of about 9 s (hard max 10 s) keep each GPU call small.
+const TARGET_SECONDS = 9;
+const MIN_SECONDS = 5;
+const HARD_MAX_SECONDS = 10;
 const MAX_FILE_BYTES = 45 * 1024 * 1024; // Supabase free tier allows 50 MB per file
 
 let ffmpegPromise: Promise<FFmpegType> | null = null;
@@ -73,7 +74,7 @@ function parseSilences(log: string, total: number): { start: number; end: number
   return out;
 }
 
-/** Cut points: inside a pause between 25 and 50 s after the previous cut, else a hard cut at 50 s. */
+/** Cut points: inside a pause between MIN and TARGET seconds after the previous cut, else a hard cut at TARGET. */
 export function planCuts(total: number, silences: { start: number; end: number }[]): number[] {
   const cuts: number[] = [];
   let last = 0;
@@ -156,17 +157,18 @@ export async function prepareLipsyncJob(
   }
 
   // ── loop mode: short face clip reused for every audio clip ──────────────────────────────────────────
-  if (videoDur <= HARD_MAX_SECONDS && audioDur > videoDur + 1) {
+  // Loop mode: the voice is longer than the face video, so one short face clip (max 10 s) is reused for every audio clip
+  if (audioDur > videoDur + 1) {
     const cuts = planCuts(audioDur, silences);
     const bounds = [0, ...cuts, audioDur];
     const clips = bounds.slice(0, -1).map((s, i) => ({ start: s, duration: Math.round((bounds[i + 1] - s) * 1000) / 1000 }));
 
     onStatus("Preparing the face video…");
     const face = "face.mp4";
-    const isSmallMp4 = vIn.endsWith(".mp4") && videoFile.size <= MAX_FILE_BYTES;
+    const isSmallMp4 = vIn.endsWith(".mp4") && videoFile.size <= MAX_FILE_BYTES && videoDur <= HARD_MAX_SECONDS;
     const args = isSmallMp4
       ? ["-hide_banner", "-y", "-i", vIn, "-an", "-c", "copy", face]
-      : ["-hide_banner", "-y", "-i", vIn, "-t", "60", "-an", "-vf", "scale=-2:min(720\\,ih)", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p", face];
+      : ["-hide_banner", "-y", "-i", vIn, "-t", String(HARD_MAX_SECONDS), "-an", "-vf", "scale=-2:min(720\\,ih)", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "26", "-pix_fmt", "yuv420p", face];
     if ((await run(ff, args)).code !== 0) throw new Error("Could not prepare the face video.");
     files.push(face);
     const faceBytes = (await ff.readFile(face)) as Uint8Array;
@@ -183,7 +185,7 @@ export async function prepareLipsyncJob(
 
   if (videoDur < audioDur - 1) {
     throw new Error(
-      "The face video is shorter than the voice audio. Use a face video of 60 seconds or less (it will loop), or one at least as long as the audio."
+      "The face video is shorter than the voice audio. Use a longer voiceover than the face video (the face loops), or a face video at least as long as the audio."
     );
   }
 
@@ -229,7 +231,7 @@ export async function prepareLipsyncJob(
     if (r.code !== 0) throw new Error("Could not optimise the face video.");
     files.push(norm);
     segs = await segment(norm);
-    if (!segs.length || (await tooBig())) throw new Error("The video could not be cut into clips under 60 seconds.");
+    if (!segs.length || (await tooBig())) throw new Error("The video could not be cut into clips of 10 seconds or less.");
   }
 
   const clips = segs.map((s) => ({ start: Math.round(s.start * 1000) / 1000, duration: Math.round((s.end - s.start) * 1000) / 1000 }));

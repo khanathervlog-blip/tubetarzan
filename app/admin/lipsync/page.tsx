@@ -62,7 +62,7 @@ export default async function AdminLipSyncPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="font-display font-bold text-2xl text-white">Lip Sync</h1>
-          <p className="text-[#555555] text-sm mt-1">Free GPU pool (Hugging Face ZeroGPU), usage and jobs. Clips are at most 60 seconds.</p>
+          <p className="text-[#555555] text-sm mt-1">Free GPU pool (Hugging Face ZeroGPU), usage and jobs. Clips are at most 10 seconds (LatentSync).</p>
         </div>
         <Link href="/admin/lipsync" className="inline-flex items-center gap-2 text-sm text-[#999999] hover:text-white border border-[#1E1E1E] rounded-btn px-3 py-2">
           <RefreshCw className="w-4 h-4" /> Refresh

@@ -199,8 +199,8 @@ export default function LipSyncStudio() {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  /** Up to this many clips lip-sync at the same time (matches default_concurrency_limit in hf-space/app.py). */
-  const LIPSYNC_CONCURRENCY = 3;
+  /** Up to this many clips lip-sync at the same time (matches default_concurrency_limit in the GPU Space). */
+  const LIPSYNC_CONCURRENCY = 1;
 
   /** Lip-syncs the run's unfinished clips, several at a time. Returns true if it had to pause (GPU budget used up). */
   const processRun = async (
@@ -407,7 +407,7 @@ export default function LipSyncStudio() {
           <h1 className="text-2xl font-bold text-white">Lip Sync Studio</h1>
           <p className="text-gray-400 text-sm mt-1">
             Make a face video speak your voiceover. Attach one clip or up to {MAX_PAIRS} at once, each with its own
-            voiceover. Long videos are cut into clips of under a minute at natural pauses, ready to join in CapCut.
+            voiceover. The voiceover is cut into clips of about 9 seconds at natural pauses, ready to join in CapCut.
           </p>
         </div>
         {access && (
@@ -484,7 +484,7 @@ export default function LipSyncStudio() {
                 >
                   <Upload className="mx-auto text-gray-500 mb-2" size={28} />
                   <p className="text-gray-400 text-sm">Drop a video of the face, or click to choose</p>
-                  <p className="text-gray-600 text-xs mt-1">Up to 60 s loops automatically · or as long as the audio · 720p MP4 works best</p>
+                  <p className="text-gray-600 text-xs mt-1">Only the first 10 s of the face is used (it loops under the whole voiceover) · clear front-facing face works best</p>
                   <input
                     ref={(el) => { videoInputRefs.current[p.id] = el; }}
                     type="file" accept="video/*" className="hidden"

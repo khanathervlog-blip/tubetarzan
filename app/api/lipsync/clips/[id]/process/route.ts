@@ -39,8 +39,8 @@ export async function POST(_request: Request, { params }: { params: { id: string
   }
 
   // Claim the clip (guards against double clicks / two tabs). A clip stuck in "processing" for over
-  // 6 minutes (e.g. the function was stopped) can be claimed again.
-  const staleBefore = new Date(Date.now() - 6 * 60_000).toISOString();
+  // 15 minutes (e.g. the function was stopped) can be claimed again.
+  const staleBefore = new Date(Date.now() - 15 * 60_000).toISOString();
   const { data: claimed } = await svc
     .from("lipsync_clips")
     .update({ status: "processing", started_at: new Date().toISOString(), attempts: clip.attempts + 1, error: null })

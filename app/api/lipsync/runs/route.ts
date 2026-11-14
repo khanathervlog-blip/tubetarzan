@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   }
   const mode = body.mode === "loop" ? "loop" : "split";
   const clips = (body.clips || []).map((c) => ({ start: Number(c.start) || 0, duration: Number(c.duration) || 0 }));
-  if (!clips.length || clips.length > 60) return NextResponse.json({ error: "Between 1 and 60 clips are allowed." }, { status: 400 });
+  if (!clips.length || clips.length > 150) return NextResponse.json({ error: "Between 1 and 150 clips are allowed." }, { status: 400 });
   if (clips.some((c) => c.duration <= 0.3 || c.duration > LIPSYNC_MAX_CLIP_SECONDS + 0.5)) {
     return NextResponse.json({ error: `Each clip must be ${LIPSYNC_MAX_CLIP_SECONDS} seconds or shorter.` }, { status: 400 });
   }
