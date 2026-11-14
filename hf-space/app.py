@@ -73,6 +73,43 @@ def _load_wav2lip():
 MODEL = _load_wav2lip()
 DETECTOR = face_detection.FaceAlignment(face_detection.LandmarksType._2D, flip_input=False, device=DEVICE)
 
+# ── optional face-restoration pass (GFPGAN) ─────────────────────────────────────────────────────────────
+# Wav2Lip generates the mouth at a low 96x96 resolution, which looks blurry once stretched back onto the
+# face. Running GFPGAN on each pasted-back face patch sharpens and restores detail. If this fails to load
+# (fragile dependency), Lip Sync still works - it just falls back to Wav2Lip's raw output.
+RESTORER = None
+try:
+    import sys as _sys
+    try:
+        import torchvision.transforms.functional_tensor  # noqa: F401  (removed in newer torchvision)
+    except ModuleNotFoundError:
+        import torchvision.transforms.functional as _tv_functional
+        _sys.modules["torchvision.transforms.functional_tensor"] = _tv_functional
+    from gfpgan import GFPGANer
+
+    RESTORER = GFPGANer(
+        model_path="https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+        upscale=1,
+        arch="clean",
+        channel_multiplier=2,
+        bg_upsampler=None,
+    )
+    print("[GFPGAN] face restoration loaded.")
+except Exception as _gfpgan_err:  # noqa: BLE001 - never let a broken optional dependency take the Space down
+    print(f"[GFPGAN] face restoration unavailable, continuing with raw Wav2Lip output: {_gfpgan_err}")
+    RESTORER = None
+
+
+def restore_face(patch):
+    """Sharpens one pasted-back face patch with GFPGAN. Returns the patch unchanged if restoration fails."""
+    if RESTORER is None:
+        return patch
+    try:
+        _, _, restored = RESTORER.enhance(patch, has_aligned=False, only_center_face=True, paste_back=True)
+        return restored if restored is not None else patch
+    except Exception:  # noqa: BLE001 - one bad frame should not fail the whole clip
+        return patch
+
 
 # ── audio features (same maths as Wav2Lip's audio.py / hparams.py) ────────────────────────────────────
 SR, N_FFT, HOP, WIN, N_MELS, FMIN, FMAX = 16000, 800, 200, 800, 80, 55, 7600
@@ -150,8 +187,9 @@ def frame_reader(path: str, loop: bool):
 
 
 def gpu_seconds(face_path, mel_chunks, fps, out_path):  # noqa: ARG001 - signature must match infer()
-    # Ask ZeroGPU only for the time this clip needs (quota is reserved per call)
-    return int(min(170, 25 + len(mel_chunks) / max(fps, 1) * 1.6))
+    # Ask ZeroGPU only for the time this clip needs (quota is reserved per call).
+    # The multiplier is higher than Wav2Lip alone needs because GFPGAN restores every pasted-back frame too.
+    return int(min(170, 30 + len(mel_chunks) / max(fps, 1) * 2.3))
 
 
 @spaces.GPU(duration=gpu_seconds)
@@ -213,7 +251,8 @@ def infer(face_path: str, mel_chunks: np.ndarray, fps: float, out_path: str) -> 
         with torch.no_grad():
             pred = MODEL(mel_t, img_t).cpu().numpy().transpose(0, 2, 3, 1) * 255.0
         for p, f, (x1, y1, x2, y2) in zip(pred, frames, coords):
-            f[y1:y2, x1:x2] = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+            patch = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
+            f[y1:y2, x1:x2] = restore_face(patch)
             writer.write(f)
         imgs.clear(); mels.clear(); frames.clear(); coords.clear()
 

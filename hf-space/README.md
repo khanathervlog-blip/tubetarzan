@@ -12,7 +12,10 @@ pinned: false
 # TubeTarzan Lip Sync worker (Hugging Face ZeroGPU)
 
 This folder is a complete Hugging Face Space. TubeTarzan sends it one clip at a time (60 s max); it
-lip-syncs the clip on a free ZeroGPU and uploads the MP4 straight back to Supabase Storage.
+lip-syncs the clip on a free ZeroGPU and uploads the MP4 straight back to Supabase Storage. Wav2Lip's output
+is sharpened with GFPGAN face restoration before writing the video, so the mouth region looks less blurry.
+If GFPGAN fails to install (it's a known-fragile dependency), the Space still runs - it just falls back to
+raw Wav2Lip output automatically (check the Logs for a `[GFPGAN]` line to see which happened).
 
 ## 1. Create the Space (one account hosts it)
 

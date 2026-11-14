@@ -6,3 +6,7 @@ scipy
 requests
 huggingface_hub
 spaces
+# Face restoration pass on top of Wav2Lip's output (sharper, less blurry mouth region)
+basicsr==1.4.2
+facexlib==0.3.0
+gfpgan==1.3.8
