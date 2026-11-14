@@ -43,6 +43,23 @@ export async function GET(request: Request) {
     }
   }
 
+  // Captions: uploaded videos live in one folder per day; delete folders older than 2 days (1 GB free storage)
+  try {
+    const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const { data: folders } = await svc.storage.from("captions").list("", { limit: 100 });
+    let capRemoved = 0;
+    for (const f of folders || []) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f.name) || f.name >= cutoff) continue;
+      const { data: files } = await svc.storage.from("captions").list(f.name, { limit: 1000 });
+      const paths = (files || []).map((x) => `${f.name}/${x.name}`);
+      if (paths.length) await svc.storage.from("captions").remove(paths);
+      capRemoved += paths.length;
+    }
+    results.caption_files = capRemoved;
+  } catch {
+    results.caption_files = -1;
+  }
+
   // Lip Sync: delete clip files after 7 days (Supabase free tier has 1 GB of storage). Small batch per day.
   try {
     const { data: oldRuns } = await svc

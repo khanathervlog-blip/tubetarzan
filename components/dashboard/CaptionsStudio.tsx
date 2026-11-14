@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { startPoller } from "@/lib/poll";
+import { createClient } from "@/lib/supabase/client";
 import { Upload, Subtitles, Play, Download, Loader2, CheckCircle2, AlertCircle, Languages, Palette, Sliders, Flame, RefreshCw } from "lucide-react";
 
 interface Word {
@@ -51,6 +52,7 @@ export default function CaptionsStudio() {
   const [burnStatus, setBurnStatus] = useState<"idle" | "burning" | "complete" | "failed">("idle");
   const [outputUrl, setOutputUrl] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -69,10 +71,39 @@ export default function CaptionsStudio() {
     return () => video.removeEventListener("timeupdate", onTime);
   }, [step]);
 
-  const handleVideoFile = (file: File) => {
-    const url = URL.createObjectURL(file);
-    setVideoPreview(url);
-    setVideoUrl(url);
+  // The preview uses a local blob: link, but the transcription server needs a real URL, so the video is first
+  // uploaded to private storage and videoUrl becomes a signed link.
+  const handleVideoFile = async (file: File) => {
+    setError("");
+    setVideoUrl("");
+    setVideoPreview(URL.createObjectURL(file));
+    setUploading(true);
+    try {
+      const res = await fetch("/api/captions/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, size: file.size }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not prepare the upload.");
+      const { error: upErr } = await createClient()
+        .storage.from("captions")
+        .uploadToSignedUrl(data.path, data.token, file, { contentType: file.type || "video/mp4" });
+      if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
+      const readRes = await fetch("/api/captions/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ readPath: data.path }),
+      });
+      const readData = await readRes.json();
+      if (!readRes.ok) throw new Error(readData.error || "Could not prepare the video link.");
+      setVideoUrl(readData.videoUrl);
+    } catch (e) {
+      setVideoPreview("");
+      setError(e instanceof Error ? e.message : "Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const currentCaption = (): string => {
@@ -260,13 +291,17 @@ export default function CaptionsStudio() {
             >
               <Upload className="mx-auto text-gray-500 mb-2" size={36} />
               <p className="text-gray-400 text-sm">Drop video here or click to upload</p>
-              <p className="text-gray-600 text-xs mt-1">MP4, MOV, WebM · max 2GB</p>
+              <p className="text-gray-600 text-xs mt-1">MP4, MOV, WebM · max 45 MB (export at 720p). Free plan: 3 videos per month</p>
               <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleVideoFile(f); }} />
             </div>
             {videoPreview && (
               <div className="mt-4">
                 <video ref={videoRef} src={videoPreview} controls className="w-full max-h-48 rounded-lg bg-black" />
-                <p className="text-green-400 text-xs mt-1 flex items-center gap-1"><CheckCircle2 size={12} /> Video ready</p>
+                {uploading ? (
+                  <p className="text-gray-400 text-xs mt-1 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Uploading…</p>
+                ) : videoUrl ? (
+                  <p className="text-green-400 text-xs mt-1 flex items-center gap-1"><CheckCircle2 size={12} /> Video ready</p>
+                ) : null}
               </div>
             )}
           </div>
@@ -285,7 +320,7 @@ export default function CaptionsStudio() {
 
           <button
             onClick={() => setStep("generate")}
-            disabled={!videoUrl}
+            disabled={!videoUrl || uploading}
             className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
           >
             Next: Generate Captions
