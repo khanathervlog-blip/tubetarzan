@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Upload, Video, Mic, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Camera, Scissors, Play, Trash2, PauseCircle, Info,
+  Upload, Video, Mic, Download, Loader2, CheckCircle2, AlertCircle, RefreshCw, Camera, Scissors, Play, Trash2, PauseCircle, Info, Plus, X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatSeconds } from "@/lib/plans";
@@ -25,6 +25,19 @@ interface Access {
 interface Clip { id: string; idx: number; start: number; duration: number; status: string; error?: string | null; attempts?: number; downloadUrl?: string | null }
 interface Run { id: string; created_at: string; source_name: string | null; mode: string; status: string; total_seconds: number; clip_count: number; done_count: number; error: string | null; clips: Clip[] }
 
+/** One face-video + voiceover attachment. Up to MAX_PAIRS of these can be queued in one go. */
+interface PairItem {
+  id: string;
+  videoFile: File | null;
+  videoPreview: string;
+  audioFile: File | Blob | null;
+  audioName: string;
+  selectedAvatar: Avatar | null;
+}
+const MAX_PAIRS = 5;
+let pairSeq = 0;
+const newPair = (): PairItem => ({ id: `p${++pairSeq}`, videoFile: null, videoPreview: "", audioFile: null, audioName: "", selectedAvatar: null });
+
 const REASONS: Record<string, string> = {
   upgrade_required: "Lip Sync is included in the Creator, Pro and Agency plans.",
   coming_soon: "Lip Sync for subscribers is coming soon.",
@@ -45,21 +58,18 @@ export default function LipSyncStudio() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [videoPreview, setVideoPreview] = useState("");
-  const [audioFile, setAudioFile] = useState<File | Blob | null>(null);
-  const [audioName, setAudioName] = useState("");
+  const [pairs, setPairs] = useState<PairItem[]>([newPair()]);
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [avatarsLoading, setAvatarsLoading] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState<Avatar | null>(null);
 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [recordingForId, setRecordingForId] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const audioInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -142,17 +152,27 @@ export default function LipSyncStudio() {
     }
   };
 
-  const pickVideo = (f: File) => {
-    setVideoFile(f);
-    setVideoPreview(URL.createObjectURL(f));
-    setSelectedAvatar(null);
+  const updatePair = (id: string, patch: Partial<PairItem>) => {
+    setPairs((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   };
-  const pickAudio = (f: File | Blob, name: string) => {
-    setAudioFile(f);
-    setAudioName(name);
+  const addPair = () => setPairs((ps) => (ps.length >= MAX_PAIRS ? ps : [...ps, newPair()]));
+  const removePair = (id: string) => {
+    setPairs((ps) => {
+      if (ps.length <= 1) return ps;
+      const gone = ps.find((p) => p.id === id);
+      if (gone?.videoPreview) URL.revokeObjectURL(gone.videoPreview);
+      return ps.filter((p) => p.id !== id);
+    });
   };
 
-  const startRecording = async () => {
+  const pickVideoFor = (id: string, f: File) => {
+    updatePair(id, { videoFile: f, videoPreview: URL.createObjectURL(f), selectedAvatar: null });
+  };
+  const pickAudioFor = (id: string, f: File | Blob, name: string) => {
+    updatePair(id, { audioFile: f, audioName: name });
+  };
+
+  const startRecording = async (id: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -160,11 +180,12 @@ export default function LipSyncStudio() {
       chunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        pickAudio(new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }), "Recorded voice");
+        pickAudioFor(id, new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" }), "Recorded voice");
         stream.getTracks().forEach((t) => t.stop());
       };
       recorder.start();
       setIsRecording(true);
+      setRecordingForId(id);
       setRecordingTime(0);
       timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
     } catch {
@@ -174,14 +195,18 @@ export default function LipSyncStudio() {
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
     setIsRecording(false);
+    setRecordingForId(null);
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
   /** Up to this many clips lip-sync at the same time (matches default_concurrency_limit in hf-space/app.py). */
   const LIPSYNC_CONCURRENCY = 3;
 
-  /** Lip-syncs the run's unfinished clips, several at a time. Stops starting new ones when the free GPU time runs out. */
-  const processRun = async (run: { id: string; clips: { id: string; idx: number; status: string; attempts?: number }[] }) => {
+  /** Lip-syncs the run's unfinished clips, several at a time. Returns true if it had to pause (GPU budget used up). */
+  const processRun = async (
+    run: { id: string; clips: { id: string; idx: number; status: string; attempts?: number }[] },
+    label = ""
+  ): Promise<boolean> => {
     setActiveRunId(run.id);
     const total = run.clips.length;
     const todo = run.clips.filter((c) => c.status !== "complete").sort((a, b) => a.idx - b.idx);
@@ -202,8 +227,8 @@ export default function LipSyncStudio() {
       setEtaText(remaining > 0 ? `~${Math.max(1, Math.round((remaining * avgMs) / parallel / 60_000))} min left` : "almost done…");
       setStatus(
         working.length
-          ? `Lip-syncing clip${working.length > 1 ? "s" : ""} ${working.join(", ")} of ${total} (${completedCount}/${total} done)…`
-          : `${completedCount}/${total} clips done…`
+          ? `${label}Lip-syncing clip${working.length > 1 ? "s" : ""} ${working.join(", ")} of ${total} (${completedCount}/${total} done)…`
+          : `${label}${completedCount}/${total} clips done…`
       );
     };
     updateStatus();
@@ -259,41 +284,28 @@ export default function LipSyncStudio() {
     setEtaText("");
     setActiveRunId(null);
     await load();
+    return !!pausedMessage;
   };
 
-  const start = async () => {
-    if (!access) return;
-    setError("");
-    setProgressPct(0);
-    setEtaText("");
-    let video: File | Blob | null = videoFile;
-    if (!video && selectedAvatar) {
-      try {
-        reportStatus("Downloading the avatar video…");
-        video = await (await fetch(selectedAvatar.videoUrl)).blob();
-      } catch {
-        setError("Couldn't load that avatar. Please upload your own face video instead.");
-        setStatus("");
-        return;
-      }
+  /** Cuts, uploads and lip-syncs one video+voiceover pair. Returns true if it had to pause (GPU budget used up). */
+  const runOnePair = async (p: PairItem, currentAccess: Access, label: string): Promise<boolean> => {
+    let video: File | Blob | null = p.videoFile;
+    if (!video && p.selectedAvatar) {
+      reportStatus(`${label}Downloading the avatar video…`);
+      video = await (await fetch(p.selectedAvatar.videoUrl)).blob();
     }
-    if (!video || !audioFile) {
-      setError("Please choose a face video and a voice audio.");
-      return;
-    }
+    if (!video || !p.audioFile) return false;
 
-    setBusy(true);
-    cancelRef.current = false;
     let job: Awaited<ReturnType<typeof import("@/lib/lipsync-split").prepareLipsyncJob>> | null = null;
     try {
       const { prepareLipsyncJob } = await import("@/lib/lipsync-split");
-      job = await prepareLipsyncJob(video, audioFile, access.maxRunSeconds, reportStatus);
+      job = await prepareLipsyncJob(video, p.audioFile, currentAccess.maxRunSeconds, (m) => reportStatus(`${label}${m}`));
 
-      reportStatus(`Prepared ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"}. Reserving your minutes…`);
+      reportStatus(`${label}Prepared ${job.clips.length} clip${job.clips.length === 1 ? "" : "s"}. Reserving your minutes…`);
       const res = await fetch("/api/lipsync/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: job.mode, sourceName: (videoFile?.name || "Avatar") + " + " + audioName, clips: job.clips }),
+        body: JSON.stringify({ mode: job.mode, sourceName: (p.videoFile?.name || "Avatar") + " + " + p.audioName, clips: job.clips }),
       });
       const created = await res.json();
       if (!res.ok) throw new Error(REASONS[created.error] || created.error || "Could not start the job.");
@@ -301,9 +313,9 @@ export default function LipSyncStudio() {
       const supabase = createClient();
       const uploaded = new Set<string>();
       for (let i = 0; i < created.clips.length; i++) {
-        if (cancelRef.current) return;
+        if (cancelRef.current) return false;
         const c = created.clips[i] as { idx: number; videoPath: string; audioPath: string };
-        reportStatus(`Uploading clip ${i + 1} of ${created.clips.length}…`);
+        reportStatus(`${label}Uploading clip ${i + 1} of ${created.clips.length}…`);
         for (const [path, kind] of [[c.videoPath, "video"], [c.audioPath, "audio"]] as const) {
           if (uploaded.has(path)) continue;
           const bytes = kind === "video" ? await job.video(c.idx) : await job.audio(c.idx);
@@ -328,19 +340,49 @@ export default function LipSyncStudio() {
       setRuns(fresh.runs || []);
       setAccess(fresh.access);
       const run = (fresh.runs || []).find((r: Run) => r.id === created.runId);
-      if (run) await processRun(run);
-    } catch (e) {
-      console.error("Lip Sync failed:", e);
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Something interrupted the video cutting - this usually happens when the tab is minimised, put to sleep, or switched away from for too long. Keep this tab open and in the foreground, then try again."
-      );
+      return run ? await processRun(run, label) : false;
+    } finally {
+      await job?.cleanup().catch(() => {});
+    }
+  };
+
+  const start = async () => {
+    if (!access) return;
+    setError("");
+    setProgressPct(0);
+    setEtaText("");
+    const usable = pairs.filter((p) => (p.videoFile || p.selectedAvatar) && p.audioFile);
+    if (!usable.length) {
+      setError("Please choose at least one face video and its voice audio.");
+      return;
+    }
+
+    setBusy(true);
+    cancelRef.current = false;
+    const failures: string[] = [];
+    try {
+      for (let n = 0; n < usable.length; n++) {
+        if (cancelRef.current) break;
+        const label = usable.length > 1 ? `Clip set ${n + 1} of ${usable.length}: ` : "";
+        try {
+          const paused = await runOnePair(usable[n], access, label);
+          if (paused) break; // GPU budget used up for today - don't start the remaining pairs
+        } catch (e) {
+          console.error("Lip Sync failed:", e);
+          failures.push(
+            `${usable.length > 1 ? `Clip set ${n + 1}: ` : ""}${
+              e instanceof Error
+                ? e.message
+                : "something interrupted the video cutting - this usually happens when the tab is minimised, put to sleep, or switched away from for too long."
+            }`
+          );
+        }
+      }
+      if (failures.length) setError(failures.join(" "));
+    } finally {
       setStatus("");
       setProgressPct(0);
       setEtaText("");
-    } finally {
-      await job?.cleanup().catch(() => {});
       setBusy(false);
     }
   };
@@ -356,6 +398,7 @@ export default function LipSyncStudio() {
   }
 
   const blocked = !access?.allowed || !access?.configured;
+  const canStart = pairs.some((p) => (p.videoFile || p.selectedAvatar) && p.audioFile);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -363,8 +406,8 @@ export default function LipSyncStudio() {
         <div>
           <h1 className="text-2xl font-bold text-white">Lip Sync Studio</h1>
           <p className="text-gray-400 text-sm mt-1">
-            Make a face video speak your voiceover. Long videos are cut into clips of under a minute at natural pauses,
-            ready to join in CapCut.
+            Make a face video speak your voiceover. Attach one clip or up to {MAX_PAIRS} at once, each with its own
+            voiceover. Long videos are cut into clips of under a minute at natural pauses, ready to join in CapCut.
           </p>
         </div>
         {access && (
@@ -418,84 +461,118 @@ export default function LipSyncStudio() {
         </div>
       )}
 
-      <div className={`grid md:grid-cols-2 gap-4 ${blocked ? "opacity-50 pointer-events-none" : ""}`}>
-        {/* Face video */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-white font-semibold flex items-center gap-2"><Video size={18} /> 1. Face video</h2>
-          <div
-            className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-[#FFD200] transition-colors"
-            onClick={() => videoInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pickVideo(f); }}
-          >
-            <Upload className="mx-auto text-gray-500 mb-2" size={28} />
-            <p className="text-gray-400 text-sm">Drop a video of the face, or click to choose</p>
-            <p className="text-gray-600 text-xs mt-1">Up to 60 s loops automatically · or as long as the audio · 720p MP4 works best</p>
-            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickVideo(f); }} />
-          </div>
-          {videoPreview && <video src={videoPreview} controls className="w-full max-h-44 rounded-lg bg-black" />}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-gray-400 text-sm flex items-center gap-2"><Camera size={14} /> Or a stock avatar</p>
-              <button onClick={loadAvatars} className="text-gray-500 hover:text-white text-xs flex items-center gap-1">
-                <RefreshCw size={12} className={avatarsLoading ? "animate-spin" : ""} /> {avatars.length ? "More" : "Show"}
-              </button>
-            </div>
-            {avatars.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {avatars.map((av) => (
-                  <button
-                    key={av.id}
-                    onClick={() => { setSelectedAvatar(av); setVideoFile(null); setVideoPreview(""); }}
-                    className={`relative rounded-lg overflow-hidden border-2 ${selectedAvatar?.id === av.id ? "border-[#FFD200]" : "border-gray-700"}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={av.thumbnailUrl} alt="Stock avatar" className="w-full h-20 object-cover" />
-                    <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded">{av.duration}s</span>
-                  </button>
-                ))}
+      <div className={`space-y-4 ${blocked ? "opacity-50 pointer-events-none" : ""}`}>
+        {pairs.map((p, idx) => (
+          <div key={p.id} className="border border-gray-800 rounded-xl p-4 bg-black/20">
+            {pairs.length > 1 && (
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Clip {idx + 1}</span>
+                <button onClick={() => removePair(p.id)} className="text-gray-600 hover:text-red-400 p-1" title="Remove this clip">
+                  <X size={14} />
+                </button>
               </div>
             )}
-          </div>
-        </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Face video */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+                <h2 className="text-white font-semibold flex items-center gap-2"><Video size={18} /> 1. Face video</h2>
+                <div
+                  className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-[#FFD200] transition-colors"
+                  onClick={() => videoInputRefs.current[p.id]?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pickVideoFor(p.id, f); }}
+                >
+                  <Upload className="mx-auto text-gray-500 mb-2" size={28} />
+                  <p className="text-gray-400 text-sm">Drop a video of the face, or click to choose</p>
+                  <p className="text-gray-600 text-xs mt-1">Up to 60 s loops automatically · or as long as the audio · 720p MP4 works best</p>
+                  <input
+                    ref={(el) => { videoInputRefs.current[p.id] = el; }}
+                    type="file" accept="video/*" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) pickVideoFor(p.id, f); }}
+                  />
+                </div>
+                {p.videoPreview && <video src={p.videoPreview} controls className="w-full max-h-44 rounded-lg bg-black" />}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-gray-400 text-sm flex items-center gap-2"><Camera size={14} /> Or a stock avatar</p>
+                    <button onClick={loadAvatars} className="text-gray-500 hover:text-white text-xs flex items-center gap-1">
+                      <RefreshCw size={12} className={avatarsLoading ? "animate-spin" : ""} /> {avatars.length ? "More" : "Show"}
+                    </button>
+                  </div>
+                  {avatars.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2">
+                      {avatars.map((av) => (
+                        <button
+                          key={av.id}
+                          onClick={() => updatePair(p.id, { selectedAvatar: av, videoFile: null, videoPreview: "" })}
+                          className={`relative rounded-lg overflow-hidden border-2 ${p.selectedAvatar?.id === av.id ? "border-[#FFD200]" : "border-gray-700"}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={av.thumbnailUrl} alt="Stock avatar" className="w-full h-20 object-cover" />
+                          <span className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded">{av.duration}s</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-        {/* Voice audio */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
-          <h2 className="text-white font-semibold flex items-center gap-2"><Mic size={18} /> 2. Voice audio</h2>
-          <div
-            className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-[#FFD200] transition-colors"
-            onClick={() => audioInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pickAudio(f, f.name); }}
-          >
-            <Upload className="mx-auto text-gray-500 mb-2" size={28} />
-            <p className="text-gray-400 text-sm">Drop the voiceover, or click to choose</p>
-            <p className="text-gray-600 text-xs mt-1">MP3, M4A, WAV · up to {access ? formatSeconds(access.maxRunSeconds) : "…"}</p>
-            <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) pickAudio(f, f.name); }} />
+              {/* Voice audio */}
+              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-4">
+                <h2 className="text-white font-semibold flex items-center gap-2"><Mic size={18} /> 2. Voice audio</h2>
+                <div
+                  className="border-2 border-dashed border-gray-700 rounded-lg p-6 text-center cursor-pointer hover:border-[#FFD200] transition-colors"
+                  onClick={() => audioInputRefs.current[p.id]?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) pickAudioFor(p.id, f, f.name); }}
+                >
+                  <Upload className="mx-auto text-gray-500 mb-2" size={28} />
+                  <p className="text-gray-400 text-sm">Drop the voiceover, or click to choose</p>
+                  <p className="text-gray-600 text-xs mt-1">MP3, M4A, WAV · up to {access ? formatSeconds(access.maxRunSeconds) : "…"}</p>
+                  <input
+                    ref={(el) => { audioInputRefs.current[p.id] = el; }}
+                    type="file" accept="audio/*" className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) pickAudioFor(p.id, f, f.name); }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  {!(isRecording && recordingForId === p.id) ? (
+                    <button
+                      onClick={() => startRecording(p.id)}
+                      disabled={isRecording}
+                      className="text-sm px-3 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 disabled:opacity-40 flex items-center gap-2"
+                    >
+                      <Mic size={14} /> Record instead
+                    </button>
+                  ) : (
+                    <button onClick={stopRecording} className="text-sm px-3 py-2 rounded-lg bg-red-700 text-white flex items-center gap-2">
+                      <PauseCircle size={14} /> Stop · {clock(recordingTime)}
+                    </button>
+                  )}
+                  {p.audioFile && <span className="text-green-400 text-xs flex items-center gap-1"><CheckCircle2 size={12} /> {p.audioName}</span>}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {!isRecording ? (
-              <button onClick={startRecording} className="text-sm px-3 py-2 rounded-lg bg-gray-800 text-gray-200 hover:bg-gray-700 flex items-center gap-2">
-                <Mic size={14} /> Record instead
-              </button>
-            ) : (
-              <button onClick={stopRecording} className="text-sm px-3 py-2 rounded-lg bg-red-700 text-white flex items-center gap-2">
-                <PauseCircle size={14} /> Stop · {clock(recordingTime)}
-              </button>
-            )}
-            {audioFile && <span className="text-green-400 text-xs flex items-center gap-1"><CheckCircle2 size={12} /> {audioName}</span>}
-          </div>
-        </div>
+        ))}
+
+        <button
+          onClick={addPair}
+          disabled={pairs.length >= MAX_PAIRS}
+          className="w-full border-2 border-dashed border-gray-800 hover:border-[#FFD200] disabled:opacity-40 disabled:hover:border-gray-800 rounded-xl py-3 text-sm text-gray-400 hover:text-[#FFD200] flex items-center justify-center gap-2 transition-colors"
+        >
+          <Plus size={16} /> {pairs.length >= MAX_PAIRS ? `Maximum ${MAX_PAIRS} clips at once` : `Add another clip (${pairs.length}/${MAX_PAIRS})`}
+        </button>
       </div>
 
       <div className={`${blocked ? "opacity-50 pointer-events-none" : ""}`}>
         <button
           onClick={start}
-          disabled={busy || !audioFile || (!videoFile && !selectedAvatar)}
+          disabled={busy || !canStart}
           className="w-full bg-[#FFD200] hover:bg-[#FFE033] disabled:opacity-50 text-[#080808] font-bold py-3 rounded-xl flex items-center justify-center gap-2"
         >
           {busy ? <Loader2 className="animate-spin" size={18} /> : <Scissors size={18} />}
-          {busy ? "Working…" : "Cut into clips & lip-sync"}
+          {busy ? "Working…" : `Cut into clips & lip-sync${pairs.filter((p) => (p.videoFile || p.selectedAvatar) && p.audioFile).length > 1 ? " (all clips)" : ""}`}
         </button>
         {status && <p className="text-gray-400 text-sm mt-3 flex items-center gap-2"><Loader2 className="animate-spin" size={14} /> {status}</p>}
         {(busy || activeRunId) && (
