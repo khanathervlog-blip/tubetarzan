@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Upload, Subtitles, Download, Loader2, CheckCircle2, AlertCircle, Languages, Info } from "lucide-react";
 import { makeZip } from "@/lib/zip";
+import { translateLines } from "@/lib/gtranslate";
 import { groupIntoLines, toSrt, toVtt, toTxt, type CaptionLine, type CaptionWord } from "@/lib/captions-format";
 
 const LANGUAGES: [string, string][] = [
@@ -35,6 +36,8 @@ export default function CaptionsStudio() {
   const [picked, setPicked] = useState<string[]>([]);
   const [tlBusy, setTlBusy] = useState(false);
   const [tlStatus, setTlStatus] = useState("");
+  const [videoRef, setVideoRef] = useState("");
+  const [ytMsg, setYtMsg] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -121,23 +124,25 @@ export default function CaptionsStudio() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  /** Translates (free, in the browser) every ticked language. Returns one SRT per language, Hindi first. */
+  const buildFiles = async () => {
+    const files: { name: string; code: string; label: string; text: string }[] = [{ name: "captions.hi.srt", code: "hi", label: "Hindi", text: toSrt(lines) }];
+    const src = lines.map((l) => l.text);
+    for (let i = 0; i < picked.length; i++) {
+      const [label, code] = TARGETS.find((t) => t[1] === picked[i]) as [string, string];
+      setTlStatus(`Translating to ${label} (${i + 1}/${picked.length})…`);
+      const out = await translateLines(src, "hi", code);
+      files.push({ name: `captions.${code}.srt`, code, label, text: toSrt(lines.map((l, k) => ({ ...l, text: out[k] }))) });
+    }
+    return files;
+  };
+
   const downloadAll = async () => {
     setError("");
+    setYtMsg("");
     setTlBusy(true);
     try {
-      const files: { name: string; text: string }[] = [{ name: "captions.hi.srt", text: toSrt(lines) }];
-      for (let i = 0; i < picked.length; i++) {
-        const [label, code] = TARGETS.find((t) => t[1] === picked[i]) as [string, string];
-        setTlStatus(`Translating to ${label} (${i + 1}/${picked.length})…`);
-        const r = await fetch("/api/captions/translate-lines", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lines: lines.map((l) => l.text), targetLanguage: label, sourceLanguage: "Hindi" }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || `Translation to ${label} failed.`);
-        files.push({ name: `captions.${code}.srt`, text: toSrt(lines.map((l, k) => ({ ...l, text: j.lines[k] }))) });
-      }
+      const files = await buildFiles();
       const url = URL.createObjectURL(makeZip(files));
       const a = document.createElement("a");
       a.href = url;
@@ -146,6 +151,37 @@ export default function CaptionsStudio() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Translation failed.");
+    } finally {
+      setTlBusy(false);
+      setTlStatus("");
+    }
+  };
+
+  const uploadToYouTube = async () => {
+    setError("");
+    setYtMsg("");
+    const m = videoRef.trim().match(/(?:v=|youtu\.be\/|shorts\/|embed\/)?([A-Za-z0-9_-]{11})(?:[?&#/]|$)/);
+    if (!m) { setError("Paste your YouTube video link (or the 11-character video ID)."); return; }
+    setTlBusy(true);
+    try {
+      const files = await buildFiles();
+      const failed: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        setTlStatus(`Uploading ${files[i].label} to YouTube (${i + 1}/${files.length})…`);
+        const r = await fetch("/api/captions/youtube-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoId: m[1], language: files[i].code, name: files[i].label, srt: files[i].text }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (r.status === 403 || r.status === 400 || r.status === 401) throw new Error(j.error || "Upload refused.");
+          failed.push(`${files[i].label}: ${j.error || "failed"}`);
+        }
+      }
+      setYtMsg(failed.length ? `Uploaded the rest. Problems: ${failed.join(" | ")}` : `All ${files.length} caption tracks are on your YouTube video.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
       setTlBusy(false);
       setTlStatus("");
@@ -248,8 +284,17 @@ export default function CaptionsStudio() {
             <button onClick={() => setPicked(picked.length === TARGETS.length ? [] : TARGETS.map((t) => t[1]))} className="text-xs text-gray-400 underline">{picked.length === TARGETS.length ? "Clear all" : "Select all"}</button>
             <button onClick={downloadAll} disabled={tlBusy || picked.length === 0} className="w-full bg-[#FFD200] disabled:opacity-50 text-[#080808] font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm">
               {tlBusy ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
-              {tlBusy ? tlStatus : `Translate ${picked.length || ""} language${picked.length === 1 ? "" : "s"} & download ZIP (Creator plan+)`}
+              {tlBusy ? tlStatus : `Translate ${picked.length || ""} language${picked.length === 1 ? "" : "s"} & download ZIP (free)`}
             </button>
+            <div className="border-t border-gray-800 pt-3 space-y-2">
+              <p className="text-white text-sm font-semibold">Or upload straight to YouTube (Creator plan+, your connected channel)</p>
+              <input value={videoRef} onChange={(e) => setVideoRef(e.target.value)} placeholder="Paste the YouTube video link of this video" className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" />
+              <button onClick={uploadToYouTube} disabled={tlBusy || picked.length === 0 || !videoRef.trim()} className="w-full border border-[#FFD200] text-[#FFD200] disabled:opacity-50 font-bold py-2.5 rounded-xl text-sm">
+                Translate &amp; upload all to YouTube
+              </button>
+              {ytMsg && <p className="text-green-400 text-xs">{ytMsg}</p>}
+              <p className="text-gray-600 text-xs">The video must be on the channel you connected in TubeTarzan. If a language already exists on that video, delete it in YouTube Studio first.</p>
+            </div>
             <p className="text-gray-600 text-xs">Files are named captions.&lt;language&gt;.srt - upload each in YouTube Studio → Subtitles. The Hindi file is included.</p>
           </div>
           <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">

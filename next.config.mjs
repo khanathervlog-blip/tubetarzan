@@ -13,7 +13,7 @@ const csp = [
   "media-src 'self' data: blob: https:",
   "font-src 'self' data:",
   // blob: - ffmpeg.wasm (Lip Sync) fetches its video file and wasm core through blob: URLs
-  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://unpkg.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://videos.pexels.com https://*.pexels.com https://vercel.live wss://ws-us3.pusher.com",
+  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://unpkg.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://translate.googleapis.com https://videos.pexels.com https://*.pexels.com https://vercel.live wss://ws-us3.pusher.com",
   "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://vercel.live",
   "worker-src 'self' blob:",
   "object-src 'none'",
