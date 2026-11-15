@@ -3,17 +3,22 @@
 // The library is loaded from the jsDelivr CDN at runtime (bundling onnxruntime-web breaks the Next.js minifier).
 const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.2";
 
-const MODEL = "onnx-community/whisper-base_timestamped";
+const MODELS: Record<string, string> = {
+  small: "onnx-community/whisper-small_timestamped",
+  medium: "onnx-community/whisper-medium_timestamped",
+};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let asr: any = null;
+let loaded = "";
 
-self.onmessage = async (e: MessageEvent<{ audio: Float32Array; language?: string }>) => {
+self.onmessage = async (e: MessageEvent<{ audio: Float32Array; language?: string; quality?: string }>) => {
   try {
-    if (!asr) {
+    const q = e.data.quality === "medium" ? "medium" : "small";
+    if (!asr || loaded !== q) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const lib: any = await import(/* webpackIgnore: true */ TRANSFORMERS_URL);
       lib.env.allowLocalModels = false;
-      asr = await lib.pipeline("automatic-speech-recognition", MODEL, {
+      asr = await lib.pipeline("automatic-speech-recognition", MODELS[q], {
         dtype: "q8",
         device: "wasm",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,11 +27,13 @@ self.onmessage = async (e: MessageEvent<{ audio: Float32Array; language?: string
         },
       });
     }
+    loaded = q;
     self.postMessage({ type: "transcribing" });
     const out = await asr(e.data.audio, {
       return_timestamps: "word",
       chunk_length_s: 30,
       stride_length_s: 5,
+      num_beams: 1,
       task: "transcribe",
       ...(e.data.language ? { language: e.data.language } : {}),
     });

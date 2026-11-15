@@ -5,7 +5,7 @@ import { Upload, Subtitles, Download, Loader2, CheckCircle2, AlertCircle, Langua
 import { groupIntoLines, toSrt, toVtt, toTxt, type CaptionLine, type CaptionWord } from "@/lib/captions-format";
 
 const LANGUAGES: [string, string][] = [
-  ["Auto Detect", ""], ["English", "english"], ["Urdu", "urdu"], ["Hindi", "hindi"], ["Arabic", "arabic"], ["Spanish", "spanish"],
+  ["Urdu", "urdu"], ["English", "english"], ["Hindi", "hindi"], ["Arabic", "arabic"], ["Spanish", "spanish"],
   ["French", "french"], ["German", "german"], ["Portuguese", "portuguese"], ["Italian", "italian"], ["Turkish", "turkish"],
   ["Indonesian", "indonesian"], ["Japanese", "japanese"], ["Korean", "korean"], ["Chinese", "chinese"],
 ];
@@ -18,7 +18,8 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
 export default function CaptionsStudio() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
-  const [language, setLanguage] = useState("");
+  const [language, setLanguage] = useState("urdu");
+  const [quality, setQuality] = useState("small");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [pct, setPct] = useState(0);
@@ -75,7 +76,7 @@ export default function CaptionsStudio() {
         worker.onmessage = (e: MessageEvent<{ type: string; pct?: number; words?: CaptionWord[]; message?: string }>) => {
           const m = e.data;
           if (m.type === "download") {
-            setStatus("Downloading the speech model (first time only, ~80 MB)…");
+            setStatus("Downloading the speech model (first time only, ~250 MB for Standard, ~800 MB for Best)…");
             setPct(m.pct || 0);
           } else if (m.type === "transcribing") {
             setStatus("Transcribing in your browser… this can take a few minutes, keep this tab open.");
@@ -84,7 +85,7 @@ export default function CaptionsStudio() {
           else if (m.type === "error") reject(new Error(m.message || "Transcription failed."));
         };
         worker.onerror = (e) => reject(new Error(e.message || "The transcription worker crashed."));
-        worker.postMessage({ audio, language: language || undefined }, [audio.buffer]);
+        worker.postMessage({ audio, language, quality }, [audio.buffer]);
       });
       if (!words.length) throw new Error("No speech was found in this video.");
       setLines(groupIntoLines(words));
@@ -156,7 +157,11 @@ export default function CaptionsStudio() {
         >
           {LANGUAGES.map(([label, value]) => <option key={label} value={value}>{label}</option>)}
         </select>
-        <p className="text-gray-600 text-xs">Pick the spoken language for the best accuracy (Auto Detect works for clear speech).</p>
+        <p className="text-gray-600 text-xs">Pick the language that is actually spoken in the video. Wrong language = wrong text.</p>
+        <select value={quality} onChange={(e) => setQuality(e.target.value)} className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm">
+          <option value="small">Standard quality (faster, ~250 MB first download)</option>
+          <option value="medium">Best quality (slower, ~800 MB first download, much more accurate for Urdu)</option>
+        </select>
 
         <button
           onClick={transcribe}
@@ -196,7 +201,7 @@ export default function CaptionsStudio() {
                 <input
                   value={l.text}
                   onChange={(e) => editLine(i, e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm"
+                  dir="auto" className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-1.5 text-sm"
                 />
               </li>
             ))}
