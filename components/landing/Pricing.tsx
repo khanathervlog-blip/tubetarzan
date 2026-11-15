@@ -21,6 +21,7 @@ const PLANS = [
       "Bring own API key",
       "3 competitors",
       "Idea tracker",
+      "Auto Captions: speech to SRT/VTT (free, in your browser)",
     ],
   },
   {
@@ -41,6 +42,7 @@ const PLANS = [
       "Tag copy",
       "One-click apply",
       "Packaging studio",
+      "Auto Captions + 5 translated languages per video (ZIP of SRTs)",
     ],
   },
   {
@@ -62,6 +64,7 @@ const PLANS = [
       "One-click apply",
       "Packaging studio",
       "Bulk video update",
+      "Auto Captions + 9 translated languages per video",
     ],
   },
 ];
@@ -79,6 +82,7 @@ const AGENCY_PLAN = {
     "We handle all API keys",
     "2 team seats",
     "Unlimited competitors",
+    "Auto Captions in all 20 languages",
     "Priority support",
   ],
 };

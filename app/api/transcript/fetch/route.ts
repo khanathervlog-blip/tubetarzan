@@ -34,7 +34,28 @@ function decodeHtmlEntities(str: string): string {
     .trim();
 }
 
+type Track = { baseUrl: string; name: { simpleText: string }; languageCode: string };
+
+async function tracksFromInnertube(videoId: string): Promise<Track[]> {
+  const res = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip" },
+    body: JSON.stringify({ context: { client: { clientName: "ANDROID", clientVersion: "20.10.38", androidSdkVersion: 34, hl: "en" } }, videoId }),
+    cache: "no-store",
+  });
+  if (!res.ok) return [];
+  const j = (await res.json()) as { captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: Track[] } } };
+  return j.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+}
+
 async function fetchTranscript(videoId: string) {
+  let tracks: Track[] = [];
+  try { tracks = await tracksFromInnertube(videoId); } catch { /* fall back to the page below */ }
+  if (!tracks.length) tracks = await tracksFromPage(videoId);
+  return parseTracks(tracks);
+}
+
+async function tracksFromPage(videoId: string): Promise<Track[]> {
   const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
     headers: {
       "User-Agent":
@@ -69,6 +90,11 @@ async function fetchTranscript(videoId: string) {
 
   const tracks = captionsData?.playerCaptionsTracklistRenderer?.captionTracks;
   if (!tracks?.length) throw new Error("No caption tracks found for this video");
+  return tracks;
+}
+
+async function parseTracks(tracks: Track[]) {
+  if (!tracks.length) throw new Error("No captions available for this video. The video may be private, unavailable, or have no subtitles.");
 
   const track =
     tracks.find((t) => t.languageCode === "en") ||
@@ -90,6 +116,13 @@ async function fetchTranscript(videoId: string) {
   const xml = await xmlRes.text();
 
   const segments: { start: number; duration: number; text: string }[] = [];
+  // newer format: <p t="ms" d="ms"><s>word</s>...</p>
+  const pRegex = /<p t="(\d+)"(?: d="(\d+)")?[^>]*>([\s\S]*?)<\/p>/g;
+  let pm;
+  while ((pm = pRegex.exec(xml)) !== null) {
+    const text = decodeHtmlEntities(pm[3]);
+    if (text) segments.push({ start: parseInt(pm[1]) / 1000, duration: parseInt(pm[2] || "2000") / 1000, text });
+  }
   const regex = /<text start="([^"]+)" dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g;
   let match;
 

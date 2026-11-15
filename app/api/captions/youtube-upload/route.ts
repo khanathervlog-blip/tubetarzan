@@ -10,12 +10,12 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!rateLimit(`captions-yt:${user.id}`, 40, 10 * 60_000)) return NextResponse.json(TOO_MANY, { status: 429 });
 
-  // YouTube API quota is shared by every user (each upload = 400 units of our daily 10,000), so paid plans / admin only
+  // YouTube API quota is shared by every user (each upload = 400 units of our daily 10,000 = ~25 uploads/day), so ADMIN ONLY
   const { data: profileRaw } = await supabase.from("profiles").select("subscription_plan, email").eq("id", user.id).single();
   const profile = profileRaw as { subscription_plan: string; email: string } | null;
   const isAdmin = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(profile?.email || user.email || "");
-  if ((profile?.subscription_plan || "free") === "free" && !isAdmin) {
-    return NextResponse.json({ error: "Uploading captions to YouTube needs the Creator plan or above.", upgradeRequired: true }, { status: 403 });
+  if (!isAdmin) {
+    return NextResponse.json({ error: "Direct YouTube upload is only available to the site admin. Download the ZIP and upload in YouTube Studio." }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));

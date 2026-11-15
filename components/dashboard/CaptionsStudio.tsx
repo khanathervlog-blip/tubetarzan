@@ -36,12 +36,14 @@ export default function CaptionsStudio() {
   const [picked, setPicked] = useState<string[]>([]);
   const [tlBusy, setTlBusy] = useState(false);
   const [tlStatus, setTlStatus] = useState("");
+  const [allow, setAllow] = useState<{ plan: string; isAdmin: boolean; maxLanguages: number; canUploadToYouTube: boolean } | null>(null);
   const [videoRef, setVideoRef] = useState("");
   const [ytMsg, setYtMsg] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { workerRef.current?.terminate(); }, []);
+  useEffect(() => { fetch("/api/captions/allowance").then((r) => r.json()).then(setAllow).catch(() => {}); }, []);
 
   const pick = (f: File) => {
     setError("");
@@ -125,6 +127,8 @@ export default function CaptionsStudio() {
   };
 
   /** Translates (free, in the browser) every ticked language. Returns one SRT per language, Hindi first. */
+  const max = allow?.maxLanguages ?? 0;
+
   const buildFiles = async () => {
     const files: { name: string; code: string; label: string; text: string }[] = [{ name: "captions.hi.srt", code: "hi", label: "Hindi", text: toSrt(lines) }];
     const src = lines.map((l) => l.text);
@@ -276,25 +280,26 @@ export default function CaptionsStudio() {
             <div className="flex flex-wrap gap-2">
               {TARGETS.map(([label, code]) => (
                 <label key={code} className={`text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer ${picked.includes(code) ? "border-[#FFD200] text-[#FFD200]" : "border-gray-700 text-gray-300"}`}>
-                  <input type="checkbox" className="hidden" checked={picked.includes(code)} onChange={() => setPicked((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]))} />
+                  <input type="checkbox" className="hidden" checked={picked.includes(code)} onChange={() => setPicked((p) => (p.includes(code) ? p.filter((c) => c !== code) : p.length >= max ? p : [...p, code]))} />
                   {label}
                 </label>
               ))}
             </div>
-            <button onClick={() => setPicked(picked.length === TARGETS.length ? [] : TARGETS.map((t) => t[1]))} className="text-xs text-gray-400 underline">{picked.length === TARGETS.length ? "Clear all" : "Select all"}</button>
+            <button onClick={() => setPicked(picked.length >= max ? [] : TARGETS.slice(0, max).map((t) => t[1]))} className="text-xs text-gray-400 underline">{picked.length >= max ? "Clear all" : `Select ${max === TARGETS.length ? "all" : `first ${max}`}`}</button>
+            <p className="text-gray-500 text-xs">Your plan: up to {max} translated language{max === 1 ? "" : "s"} per video ({allow?.plan || "..."}).</p>
             <button onClick={downloadAll} disabled={tlBusy || picked.length === 0} className="w-full bg-[#FFD200] disabled:opacity-50 text-[#080808] font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm">
               {tlBusy ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
               {tlBusy ? tlStatus : `Translate ${picked.length || ""} language${picked.length === 1 ? "" : "s"} & download ZIP (free)`}
             </button>
-            <div className="border-t border-gray-800 pt-3 space-y-2">
-              <p className="text-white text-sm font-semibold">Or upload straight to YouTube (Creator plan+, your connected channel)</p>
+            {allow?.canUploadToYouTube && <div className="border-t border-gray-800 pt-3 space-y-2">
+              <p className="text-white text-sm font-semibold">Admin: upload straight to YouTube (your connected channel)</p>
               <input value={videoRef} onChange={(e) => setVideoRef(e.target.value)} placeholder="Paste the YouTube video link of this video" className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm" />
               <button onClick={uploadToYouTube} disabled={tlBusy || picked.length === 0 || !videoRef.trim()} className="w-full border border-[#FFD200] text-[#FFD200] disabled:opacity-50 font-bold py-2.5 rounded-xl text-sm">
                 Translate &amp; upload all to YouTube
               </button>
               {ytMsg && <p className="text-green-400 text-xs">{ytMsg}</p>}
               <p className="text-gray-600 text-xs">The video must be on the channel you connected in TubeTarzan. If a language already exists on that video, delete it in YouTube Studio first.</p>
-            </div>
+            </div>}
             <p className="text-gray-600 text-xs">Files are named captions.&lt;language&gt;.srt - upload each in YouTube Studio → Subtitles. The Hindi file is included.</p>
           </div>
           <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">

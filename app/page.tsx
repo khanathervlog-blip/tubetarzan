@@ -1,6 +1,7 @@
 import Navbar from "@/components/landing/Navbar";
 import Hero3D from "@/components/landing/Hero3D";
 import InsideTubeTarzan from "@/components/landing/InsideTubeTarzan";
+import WhyTubeTarzan from "@/components/landing/WhyTubeTarzan";
 import HowItWorks from "@/components/landing/HowItWorks";
 import DemoVideo from "@/components/landing/DemoVideo";
 import Pricing from "@/components/landing/Pricing";
@@ -99,7 +100,8 @@ export default async function LandingPage() {
       <Hero3D />
       <InsideTubeTarzan />
       <div data-reveal>
-        <HowItWorks />
+        <WhyTubeTarzan />
+      <HowItWorks />
       </div>
       {showVideo && (
         <div data-reveal>

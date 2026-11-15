@@ -1,3 +1,4 @@
+import { CHANNEL_LIMIT, type PlanId } from "@/lib/plans";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
@@ -126,6 +127,15 @@ export async function GET(request: NextRequest) {
         .single();
 
       const profile = profileRaw as Pick<Profile, "allowed_channel_ids" | "allowed_channel_data"> | null;
+      // PLAN LIMIT: how many channels this account may connect (admin = unlimited)
+      const { data: planRow } = await serviceSupabase.from("profiles").select("subscription_plan, email").eq("id", user.id).single();
+      const pr = planRow as { subscription_plan: PlanId; email: string } | null;
+      const isAdminUser = (process.env.ADMIN_EMAIL || "").split(",").map((e) => e.trim()).includes(pr?.email || user.email || "");
+      const cap = isAdminUser ? Infinity : CHANNEL_LIMIT[(pr?.subscription_plan || "free") as PlanId] ?? 1;
+      const already = profile?.allowed_channel_ids || [];
+      if (!already.includes(channel.id) && already.length >= cap) {
+        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard/channel?error=channel_limit`);
+      }
       const existingIds: string[] = profile?.allowed_channel_ids || [];
       const existingData: StoredChannelData[] = (profile?.allowed_channel_data as StoredChannelData[]) || [];
 

@@ -26,6 +26,12 @@ export const PLAN_MONTHLY_PRICE: Record<string, number> = {
   agency: PLAN_PRICES.agency.monthly,
 };
 
+/** How many caption languages one video may be translated into (on top of the spoken-language file). */
+export const CAPTION_LANGUAGE_LIMIT: Record<PlanId, number> = { free: 0, creator: 5, pro: 9, agency: 20 };
+
+/** How many YouTube channels an account may connect. Admin is unlimited. */
+export const CHANNEL_LIMIT: Record<PlanId, number> = { free: 1, creator: 1, pro: 1, agency: 5 };
+
 export function annualPerMonth(plan: PlanId): string {
   return `$${(PLAN_PRICES[plan].annual / 12).toFixed(2)}/month`;
 }

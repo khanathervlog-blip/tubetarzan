@@ -26,7 +26,7 @@ export const FAQS: { question: string; answer: string }[] = [
   {
     question: "Is it a VidIQ or TubeBuddy alternative?",
     answer:
-      "Yes. It uses the same official YouTube data and focuses on finding proven video ideas fast, at a fraction of the price.",
+      "Yes. It uses the same official YouTube data, but goes further: it finds proven video ideas, writes the script, makes the voiceover and thumbnails, and builds captions in up to 20 languages - at a fraction of the price.",
   },
   {
     question: "Is there a free plan?",
@@ -46,6 +46,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { name: "Outlier & VPH scores", text: "Spot topics that beat the channel average" },
       { name: "Idea Tracker", text: "Save, sort and plan your next videos" },
       { name: "Niche RPM Guide", text: "See which niches pay the most" },
+      { name: "Niche Library", text: "Save the niches you want to own" },
     ],
   },
   {
@@ -59,6 +60,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { name: "Bulk Updates", text: "Change tags or footers on every video" },
       { name: "Comments Intelligence", text: "Questions your viewers keep asking" },
       { name: "Retention Analysis", text: "Where viewers drop off" },
+      { name: "Channel Health Score", text: "One number for how healthy your channel is" },
+      { name: "Channel Warmup", text: "A daily plan to wake up a new or quiet channel" },
+      { name: "Policy Check", text: "Catch risky titles and descriptions before upload" },
     ],
   },
   {
@@ -70,8 +74,9 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       { name: "Script Writer", text: "Full scripts in your style" },
       { name: "Thumbnail Generator", text: "AI thumbnail concepts" },
       { name: "Voiceover & B-roll", text: "AI voice plus free stock footage" },
-      { name: "Auto Captions", text: "Word-by-word captions in 5 styles" },
+      { name: "Auto Captions", text: "Hindi/Urdu/English captions free; translate to 5-20 languages on paid plans" },
       { name: "Transcripts", text: "Any video's transcript in seconds" },
+      { name: "Batch Content", text: "Generate many video packages at once" },
       { name: "Publish & Schedule", text: "Plan uploads on a calendar" },
     ],
   },
