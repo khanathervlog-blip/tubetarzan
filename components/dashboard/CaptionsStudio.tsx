@@ -2,12 +2,19 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Upload, Subtitles, Download, Loader2, CheckCircle2, AlertCircle, Languages, Info } from "lucide-react";
+import { makeZip } from "@/lib/zip";
 import { groupIntoLines, toSrt, toVtt, toTxt, type CaptionLine, type CaptionWord } from "@/lib/captions-format";
 
 const LANGUAGES: [string, string][] = [
-  ["Urdu", "urdu"], ["English", "english"], ["Hindi", "hindi"], ["Arabic", "arabic"], ["Spanish", "spanish"],
+  ["Hindi (recommended, also for Urdu speech)", "hindi"], ["Urdu", "urdu"], ["English", "english"], ["Arabic", "arabic"], ["Spanish", "spanish"],
   ["French", "french"], ["German", "german"], ["Portuguese", "portuguese"], ["Italian", "italian"], ["Turkish", "turkish"],
   ["Indonesian", "indonesian"], ["Japanese", "japanese"], ["Korean", "korean"], ["Chinese", "chinese"],
+];
+
+const TARGETS: [string, string][] = [
+  ["English", "en"], ["Arabic", "ar"], ["Urdu", "ur"], ["Spanish", "es"], ["French", "fr"], ["German", "de"], ["Portuguese", "pt"],
+  ["Italian", "it"], ["Turkish", "tr"], ["Indonesian", "id"], ["Russian", "ru"], ["Chinese (Simplified)", "zh-Hans"], ["Japanese", "ja"],
+  ["Korean", "ko"], ["Bengali", "bn"], ["Persian", "fa"], ["Malay", "ms"], ["Dutch", "nl"], ["Swahili", "sw"], ["Thai", "th"],
 ];
 
 const MAX_FILE_BYTES = 300 * 1024 * 1024;
@@ -18,13 +25,16 @@ const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).p
 export default function CaptionsStudio() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
-  const [language, setLanguage] = useState("urdu");
+  const [language, setLanguage] = useState("hindi");
   const [quality, setQuality] = useState("small");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [pct, setPct] = useState(0);
   const [lines, setLines] = useState<CaptionLine[]>([]);
   const [error, setError] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [tlBusy, setTlBusy] = useState(false);
+  const [tlStatus, setTlStatus] = useState("");
   const workerRef = useRef<Worker | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +121,37 @@ export default function CaptionsStudio() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const downloadAll = async () => {
+    setError("");
+    setTlBusy(true);
+    try {
+      const files: { name: string; text: string }[] = [{ name: "captions.hi.srt", text: toSrt(lines) }];
+      for (let i = 0; i < picked.length; i++) {
+        const [label, code] = TARGETS.find((t) => t[1] === picked[i]) as [string, string];
+        setTlStatus(`Translating to ${label} (${i + 1}/${picked.length})…`);
+        const r = await fetch("/api/captions/translate-lines", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lines: lines.map((l) => l.text), targetLanguage: label, sourceLanguage: "Hindi" }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Translation to ${label} failed.`);
+        files.push({ name: `captions.${code}.srt`, text: toSrt(lines.map((l, k) => ({ ...l, text: j.lines[k] }))) });
+      }
+      const url = URL.createObjectURL(makeZip(files));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "captions-all-languages.zip";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Translation failed.");
+    } finally {
+      setTlBusy(false);
+      setTlStatus("");
+    }
+  };
+
   const editLine = (i: number, text: string) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, text } : l)));
 
   return (
@@ -193,7 +234,24 @@ export default function CaptionsStudio() {
               ))}
             </div>
           </div>
-          <p className="text-gray-500 text-xs">Fix any mistakes below before downloading.</p>
+          <p className="text-gray-500 text-xs">Fix any mistakes below before downloading or translating.</p>
+          <div className="border border-gray-800 rounded-lg p-4 space-y-3">
+            <h3 className="text-white font-semibold text-sm flex items-center gap-2"><Languages size={16} /> Translate into more languages (one ZIP of .srt files)</h3>
+            <div className="flex flex-wrap gap-2">
+              {TARGETS.map(([label, code]) => (
+                <label key={code} className={`text-xs px-2.5 py-1.5 rounded-lg border cursor-pointer ${picked.includes(code) ? "border-[#FFD200] text-[#FFD200]" : "border-gray-700 text-gray-300"}`}>
+                  <input type="checkbox" className="hidden" checked={picked.includes(code)} onChange={() => setPicked((p) => (p.includes(code) ? p.filter((c) => c !== code) : [...p, code]))} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <button onClick={() => setPicked(picked.length === TARGETS.length ? [] : TARGETS.map((t) => t[1]))} className="text-xs text-gray-400 underline">{picked.length === TARGETS.length ? "Clear all" : "Select all"}</button>
+            <button onClick={downloadAll} disabled={tlBusy || picked.length === 0} className="w-full bg-[#FFD200] disabled:opacity-50 text-[#080808] font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm">
+              {tlBusy ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
+              {tlBusy ? tlStatus : `Translate ${picked.length || ""} language${picked.length === 1 ? "" : "s"} & download ZIP (Creator plan+)`}
+            </button>
+            <p className="text-gray-600 text-xs">Files are named captions.&lt;language&gt;.srt - upload each in YouTube Studio → Subtitles. The Hindi file is included.</p>
+          </div>
           <ul className="space-y-2 max-h-[28rem] overflow-y-auto pr-1">
             {lines.map((l, i) => (
               <li key={i} className="flex items-start gap-3">
