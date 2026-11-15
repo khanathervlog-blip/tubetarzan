@@ -51,7 +51,7 @@ const PLANS = [
     name: "Agency",
     price: `$${PLAN_PRICES.agency.monthly}`,
     period: "/month",
-    features: ["5 channels", "Unlimited scans", "Priority support"],
+    features: ["10 channels", "Unlimited scans", "Priority support"],
     cta: "Start Trial",
     variantEnv: "LEMONSQUEEZY_AGENCY_MONTHLY_VARIANT_ID",
   },

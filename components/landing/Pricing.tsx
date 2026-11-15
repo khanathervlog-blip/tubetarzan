@@ -54,7 +54,7 @@ const PLANS = [
     ctaHref: "/signup?plan=pro",
     featured: false,
     features: [
-      "1 channel (full)",
+      "3 channels (full)",
       "Unlimited scans",
       "All 200+ results",
       "We handle API key",
@@ -77,8 +77,8 @@ const AGENCY_PLAN = {
   cta: "Start Free Trial",
   ctaHref: "/signup?plan=agency",
   features: [
-    "5 YouTube channels",
-    "Everything in Pro ×5",
+    "10 YouTube channels",
+    "Everything in Pro",
     "We handle all API keys",
     "2 team seats",
     "Unlimited competitors",

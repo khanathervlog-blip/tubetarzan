@@ -85,7 +85,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     label: "Agencies & teams",
     blurb: "Run several channels without the busywork.",
     items: [
-      { name: "5 channels", text: "One workspace for all clients" },
+      { name: "10 channels", text: "One workspace for all clients" },
       { name: "2 team seats", text: "Share the workspace with your team" },
       { name: "API keys handled", text: "No Google Cloud setup" },
       { name: "Unlimited competitors", text: "Watch every rival" },
