@@ -10,6 +10,7 @@ const safeUrl = (u?: string) => !u || /^https:\/\/[^\s"'<>]+$/i.test(u);
 export async function saveVideoSettings(settings: {
   hero_video_url: string;
   hero_video_title: string;
+  landing_videos?: { url: string; title?: string }[];
   announcement_bar_text: string;
   announcement_bar_active: boolean;
   announcement_bar_link?: string;
@@ -21,6 +22,8 @@ export async function saveVideoSettings(settings: {
   if (![settings.hero_video_url, settings.announcement_bar_link, settings.onboarding_api_key_video].every(safeUrl)) {
     return { error: "Links must start with https://" };
   }
+  const extra = (settings.landing_videos || []).slice(0, 6);
+  if (!extra.every((v) => safeUrl(v.url))) return { error: "Video links must start with https://" };
   const supabase = await createServiceClient();
 
   const announcementJson = JSON.stringify({
@@ -33,6 +36,7 @@ export async function saveVideoSettings(settings: {
   const updates = [
     { key: "hero_video_url", value: settings.hero_video_url },
     { key: "hero_video_title", value: settings.hero_video_title },
+    { key: "landing_videos", value: JSON.stringify(extra.map((v) => ({ url: v.url, title: (v.title || "").slice(0, 100) }))) },
     { key: "announcement_bar", value: announcementJson },
     { key: "onboarding_api_key_video", value: settings.onboarding_api_key_video || "" },
   ];

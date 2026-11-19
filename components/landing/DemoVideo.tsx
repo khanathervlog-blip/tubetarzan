@@ -1,9 +1,12 @@
+import type { LandingVideo } from "@/lib/youtube-embed";
+
 interface DemoVideoProps {
   videoUrl: string;
   videoTitle?: string;
+  extraVideos?: LandingVideo[];
 }
 
-export default function DemoVideo({ videoUrl, videoTitle }: DemoVideoProps) {
+export default function DemoVideo({ videoUrl, videoTitle, extraVideos = [] }: DemoVideoProps) {
   return (
     <section className="py-20 lg:py-28 bg-[#080808]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,6 +41,19 @@ export default function DemoVideo({ videoUrl, videoTitle }: DemoVideoProps) {
             />
           </div>
         </div>
+
+        {extraVideos.length > 0 && (
+          <div className="max-w-5xl mx-auto mt-10 grid sm:grid-cols-2 gap-6">
+            {extraVideos.map((v) => (
+              <div key={v.url}>
+                <div className="relative w-full overflow-hidden" style={{ paddingBottom: "56.25%", border: "1px solid #1E1E1E", borderRadius: "12px" }}>
+                  <iframe src={v.url} title={v.title || "TubeTarzan video"} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen loading="lazy" className="absolute inset-0 w-full h-full" />
+                </div>
+                {v.title && <p className="text-[#999999] text-sm mt-2 text-center">{v.title}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

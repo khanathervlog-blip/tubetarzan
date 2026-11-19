@@ -9,6 +9,7 @@ import Pricing from "@/components/landing/Pricing";
 import FAQ from "@/components/landing/FAQ";
 import FinalCTA from "@/components/landing/FinalCTA";
 import Footer from "@/components/landing/Footer";
+import { toEmbedUrl, parseLandingVideos } from "@/lib/youtube-embed";
 import { getLandingSettings } from "@/lib/site-settings";
 import { FAQS } from "@/lib/landing-content";
 import { PLAN_PRICES } from "@/lib/plans";
@@ -86,7 +87,8 @@ export default async function LandingPage() {
 
   const announcementActive = settings["announcement_bar_active"] === "true";
   const announcementText = settings["announcement_bar_text"] || "";
-  const videoUrl = settings["hero_video_url"] || "";
+  const videoUrl = toEmbedUrl(settings["hero_video_url"]);
+  const extraVideos = parseLandingVideos(settings["landing_videos"]);
   const showVideo = !!videoUrl && !videoUrl.includes(PLACEHOLDER_VIDEO);
 
   return (
@@ -107,7 +109,7 @@ export default async function LandingPage() {
       </div>
       {showVideo && (
         <div data-reveal>
-          <DemoVideo videoUrl={videoUrl} videoTitle={settings["hero_video_title"] || "See TubeTarzan in action"} />
+          <DemoVideo extraVideos={extraVideos} videoUrl={videoUrl} videoTitle={settings["hero_video_title"] || "See TubeTarzan in action"} />
         </div>
       )}
       <div data-reveal>

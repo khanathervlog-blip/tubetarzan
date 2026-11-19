@@ -21,6 +21,7 @@ export const getLandingSettings = unstable_cache(
       .in("key", [
         "hero_video_url",
         "hero_video_title",
+        "landing_videos",
         "announcement_bar_text",
         "announcement_bar_active",
       ]);

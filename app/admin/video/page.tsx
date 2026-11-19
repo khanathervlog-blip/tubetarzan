@@ -5,10 +5,12 @@ import { createClient } from "@/lib/supabase/client";
 import { Save, Loader2, ToggleLeft, ToggleRight, Video, Key } from "lucide-react";
 import type { AdminSetting } from "@/types/database";
 import { saveVideoSettings } from "./actions";
+import { toEmbedUrl } from "@/lib/youtube-embed";
 
 export default function AdminVideoPage() {
   const [videoUrl, setVideoUrl] = useState("");
   const [videoTitle, setVideoTitle] = useState("");
+  const [extra, setExtra] = useState<{ url: string; title: string }[]>([]);
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementActive, setAnnouncementActive] = useState(false);
   const [announcementLink, setAnnouncementLink] = useState("");
@@ -25,7 +27,7 @@ export default function AdminVideoPage() {
       const { data } = await supabase
         .from("admin_settings")
         .select("key, value")
-        .in("key", ["hero_video_url", "hero_video_title", "announcement_bar", "onboarding_api_key_video"]);
+        .in("key", ["hero_video_url", "hero_video_title", "landing_videos", "announcement_bar", "onboarding_api_key_video"]);
 
       const settings: Record<string, string> = {};
       (data as AdminSetting[] | null)?.forEach((row) => {
@@ -34,6 +36,7 @@ export default function AdminVideoPage() {
 
       setVideoUrl(settings["hero_video_url"] || "");
       setVideoTitle(settings["hero_video_title"] || "See TubeTarzan in Action");
+      try { setExtra(JSON.parse(settings["landing_videos"] || "[]")); } catch { /* ignore */ }
       setOnboardingApiVideo(settings["onboarding_api_key_video"] || "");
       if (settings["announcement_bar"]) {
         try {
@@ -56,6 +59,7 @@ export default function AdminVideoPage() {
     const { error } = await saveVideoSettings({
       hero_video_url: videoUrl,
       hero_video_title: videoTitle,
+      landing_videos: extra.filter((v) => v.url.trim()),
       announcement_bar_text: announcementText,
       announcement_bar_active: announcementActive,
       announcement_bar_link: announcementLink,
@@ -103,13 +107,13 @@ export default function AdminVideoPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-[#999999] mb-2">
-              YouTube Embed URL
+              YouTube link (any YouTube link works: watch, youtu.be or embed)
             </label>
             <input
               type="url"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://www.youtube.com/embed/VIDEO_ID"
+              placeholder="https://youtu.be/VIDEO_ID"
               className="w-full bg-[#080808] border border-[#1E1E1E] text-white placeholder-[#555555] rounded-btn px-4 py-3 text-sm focus:outline-none focus:border-[#FFD200] transition-colors min-h-[44px]"
             />
           </div>
@@ -135,13 +139,34 @@ export default function AdminVideoPage() {
                 style={{ paddingBottom: "56.25%", border: "1px solid #1E1E1E" }}
               >
                 <iframe
-                  src={videoUrl}
+                  src={toEmbedUrl(videoUrl) || videoUrl}
                   className="absolute inset-0 w-full h-full"
                   allowFullScreen
                   title="Video preview"
                 />
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* More landing page videos */}
+      <div className="bg-[#111111] border border-[#1E1E1E] rounded-card p-6 mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Video className="w-4 h-4 text-[#FFD200]" />
+          <h2 className="font-semibold text-white text-sm">More videos on the landing page (up to 6)</h2>
+        </div>
+        <p className="text-[#555555] text-xs mb-4">Shown in a grid under the main demo video. Paste any YouTube link.</p>
+        <div className="space-y-3">
+          {extra.map((v, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+              <input value={v.url} onChange={(e) => setExtra(extra.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} placeholder="https://youtu.be/VIDEO_ID" className="bg-[#080808] border border-[#1E1E1E] text-white placeholder-[#555555] rounded-btn px-3 py-2 text-sm min-h-[44px]" />
+              <input value={v.title} onChange={(e) => setExtra(extra.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} placeholder="Caption under the video" className="bg-[#080808] border border-[#1E1E1E] text-white placeholder-[#555555] rounded-btn px-3 py-2 text-sm min-h-[44px]" />
+              <button onClick={() => setExtra(extra.filter((_, j) => j !== i))} className="text-[#FF3B3B] text-sm px-3">Remove</button>
+            </div>
+          ))}
+          {extra.length < 6 && (
+            <button onClick={() => setExtra([...extra, { url: "", title: "" }])} className="text-[#FFD200] text-sm font-semibold">+ Add a video</button>
           )}
         </div>
       </div>
